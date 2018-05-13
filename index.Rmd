@@ -25,5 +25,24 @@ Downloaded from [Copernicus Urban Atlas](https://land.copernicus.eu/local/urban-
 
 london_raster <- raster('buildings_raster/UK001L2_LONDON_UA2012_DHM/UK001L2_LONdON_UA2012_DHM.tif')
 plot(london_raster)
+title('Raster file of London Building heights')
+
+plot(london_raster, xlim = c(3615000, 3625000), ylim = c(3200000, 3205000))
+title('Raster file of London Building heights (zoomed)')
 
 ```
+
+## Import OSM roads for the same area as the raster
+
+```{r }
+
+latlong <- CRS("+init=epsg:4326")
+extent  <- projectRaster(london_raster, crs=latlong)
+extent  <- bbox(extent)
+min_x   <- extent[2,1]
+max_x   <- extent[2,2]
+min_y   <- extent[1,1]
+max_y   <- extent[1,2]
+rm(extent)
+
+roads   <- 
