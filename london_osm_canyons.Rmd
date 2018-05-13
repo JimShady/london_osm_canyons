@@ -9,7 +9,7 @@ toc_depth: 4
 collapsed: false
 date: "`r format(Sys.time(), '%Y-%m%-%d %H%:%M')`"
 knit: (function(inputFile, encoding) {
-  rmarkdown::render(inputFile, encoding = encoding, output_dir = "docs") }) 
+  rmarkdown::render(inputFile, encoding = encoding, output_dir = "docs", output_file ="index.html") })
 ---
 
 ```{r include=F}
@@ -62,7 +62,3 @@ available_tags('highway')
 ```
 
 Get the roads. Do some sort of filtering to only main roads. Make a buffer around them (dynamically?) and select the average building height from the raster layer. Then get the bearing. Create some rules for road width based on type of the road. Also need to calculate the bearing.
-
-```{r}
-knit: (function(inputFile, encoding) { rmarkdown::render(inputFile, encoding = encoding, output_file = file.path(dirname(inputFile), 'test.html')) })
-```
