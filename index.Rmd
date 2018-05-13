@@ -34,6 +34,7 @@ title('Raster file of London Building heights (zoomed)')
 
 ## Import OSM roads for the same area as the raster
 
+### Get the boundary for the data we want to download
 ```{r }
 
 latlong <- CRS("+init=epsg:4326")
@@ -44,5 +45,24 @@ max_x   <- extent[2,2]
 min_y   <- extent[1,1]
 max_y   <- extent[1,2]
 rm(extent)
+```
 
-roads   <- 
+Using the [osmdata package](https://cran.r-project.org/web/packages/osmdata/osmdata.pdf) we can download osmdata for the above bounding box. Roads have the value 'highway' in [OpenStreetMap](https://en.wikipedia.org/wiki/OpenStreetMap). Within that heading, we can also filter using the following tags:
+
+```{r}
+available_tags('highway')
+```
+
+```{r}
+#roads   <- opq(bbox = c(min_x, min_y, max_x, max_y)) %>% 
+#            add_osm_feature(key = 'highway', value='primary') %>%
+#            osmdata_sf()
+
+#plot.sf(roads)
+```
+
+Get the roads. Do some sort of filtering to only main roads. Make a buffer around them (dynamically?) and select the average building height from the raster layer. Then get the bearing. Create some rules for road width based on type of the road. Also need to calculate the bearing.
+
+```{r}
+knit: (function(inputFile, encoding) { rmarkdown::render(inputFile, encoding = encoding, output_file = file.path(dirname(inputFile), 'test.html')) })
+```
