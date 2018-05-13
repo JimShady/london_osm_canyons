@@ -1,0 +1,29 @@
+---
+title: "Determining whether London streets are air quality canyons"
+author: "James Smith"
+output:
+  html_document:
+  toc: true
+toc_float: false
+toc_depth: 4
+collapsed: false
+date: "`r format(Sys.time(), '%Y-%m%-%d %H%:%M')`"
+knit: (function(inputFile, encoding) {
+  rmarkdown::render(inputFile, encoding = encoding, output_dir = "docs") }) 
+---
+
+```{r include=F}
+library(osmdata)
+library(raster)
+```
+
+
+## Import building height data
+Downloaded from [Copernicus Urban Atlas](https://land.copernicus.eu/local/urban-atlas/building-height-2012?tab=mapview), unzipped and extracted. Now the London raster is imported.
+
+```{r }
+
+london_raster <- raster('buildings_raster/UK001L2_LONDON_UA2012_DHM/UK001L2_LONdON_UA2012_DHM.tif')
+plot(london_raster)
+
+```
