@@ -17,6 +17,8 @@ library(osmdata)
 library(raster)
 library(ggplot2)
 library(maptools)
+library(sf)
+library(rgeos)
 ```
 
 
@@ -78,11 +80,81 @@ trunk             <- trunk$osm_lines[,c('lanes')]
 trunk$type        <- 'trunk'
 tertiary          <- opq(bbox = c(min_x, min_y, max_x, max_y)) %>% add_osm_feature(key = 'highway', value='tertiary') %>% osmdata_sp()
 tertiary          <- tertiary$osm_lines[,c('lanes')]
-trunk$type        <- 'trunk'
+tertiary$type     <- 'tertiary'
 
 roads             <- rbind(primary, secondary, motorway, residential, trunk, tertiary)
+
 rm(primary, secondary, motorway, residential, trunk, tertiary)
+```
+
+Now that we have a SpatialLinesDataFrame of all the London roads, we delete the ones where the 'lane' attribute is not formed properly or contains an error.
+
+```{r}
+roads             <- roads[!grepl(';', roads$lanes),]
+roads             <- roads[!grepl('.', roads$lanes),]
+
+table(roads$type)
+```
+
+Presuming that a lane is 3.15 metres wide, each road width is now calculated and added to the dataset. Where roads do not have numebrs of lanes given, the following are presumed:
+
+```{r table, echo=FALSE, message=FALSE, warnings=FALSE, results='asis'}
+
+table <- "  
+| Road type   | Lanes |
+|:-----------:|:-----:|
+| Primary     |   2   |
+|:-----------:|:-----:|
+| Secondary   |   2   |
+|:-----------:|:-----:|
+| Motorway    |   6   |
+|:----------:-|:-----:|
+| Residential |   2   |
+|:-----------:|:-----:|
+| Trunk       |   4   |
+|:-----------:|:-----:|
+| Tertiary    |   2   |
+"
+cat(table)
 
 ```
+
+```{r}
+
+roads$lanes   <- as.numeric(as.character(roads$lanes))
+
+roads[roads$type == 'primary'     & is.na(roads$lanes),'lanes'] <- 2
+roads[roads$type == 'secondary'   & is.na(roads$lanes),'lanes'] <- 2
+roads[roads$type == 'motorway'    & is.na(roads$lanes),'lanes'] <- 6
+roads[roads$type == 'residential' & is.na(roads$lanes),'lanes'] <- 2
+roads[roads$type == 'trunk'       & is.na(roads$lanes),'lanes'] <- 4
+roads[roads$type == 'tertiary'    & is.na(roads$lanes),'lanes'] <- 2
+
+roads$width      <- as.numeric(roads$lanes) * 3.15
+
+aggregate(width ~ type, data=roads FUN=count)
+table(roads$type, roads$width)
+
+```
+
+The map below shows all non-residential roads (as there are too many residential roads to plot effectively.)
+
+```{r}
+ggplot(st_as_sf(roads[roads$type != 'residential',])[1:50,], aes(colour = type, fill=type)) + 
+  geom_sf() +
+  theme(axis.text = element_blank(),
+        panel.background = element_blank(),
+        axis.ticks = element_blank(),
+        legend.position = 'bottom')
+```
+
+Now we draw a buffer of 10 metres around each of the roads, and take the mean of the building heights from the 'london_raster' layer. To do that we first convert the data from WGS84, then to British National Grid, make the polygons, convert these to same CRS as the london_raster, then extract the heights.
+
+```{r}
+ukgrid       <- "+init=epsg:27700"
+roads        <- spTransform(roads, ukgrid)
+
+
+
 
 Get the roads. Do some sort of filtering to only main roads. Make a buffer around them (dynamically?) and select the average building height from the raster layer. Then get the bearing. Create some rules for road width based on type of the road. Also need to calculate the bearing.
