@@ -16,6 +16,7 @@ knit: (function(inputFile, encoding) {
 library(osmdata)
 library(raster)
 library(ggplot2)
+library(maptools)
 ```
 
 
@@ -59,19 +60,27 @@ available_tags('highway')
 
 ```{r}
 set_overpass_url('https://overpass.kumi.systems/api/interpreter')
-primary       <- opq(bbox = c(min_x, min_y, max_x, max_y)) %>% add_osm_feature(key = 'highway', value='primary') %>% osmdata_sf()
-primary       <- primary$osm_lines[,c('osm_id', 'geometry', 'lanes')]
-secondary     <- opq(bbox = c(min_x, min_y, max_x, max_y)) %>% add_osm_feature(key = 'highway', value='secondary') %>% osmdata_sf()
-secondary     <- secondary$osm_lines[,c('osm_id', 'geometry', 'lanes')]
-motorway      <- opq(bbox = c(min_x, min_y, max_x, max_y)) %>% add_osm_feature(key = 'highway', value='motorway') %>% osmdata_sf()
-motorway      <- motorway$osm_lines[,c('osm_id', 'geometry', 'lanes')]
-residential   <- opq(bbox = c(min_x, min_y, max_x, max_y)) %>% add_osm_feature(key = 'highway', value='residential') %>% osmdata_sf()
-residential   <- residential$osm_lines[,c('osm_id', 'geometry', 'lanes')]
-trunk         <- opq(bbox = c(min_x, min_y, max_x, max_y)) %>% add_osm_feature(key = 'highway', value='trunk') %>% osmdata_sf()
-trunk         <- trunk$osm_lines[,c('osm_id', 'geometry', 'lanes')]
-tertiary      <- opq(bbox = c(min_x, min_y, max_x, max_y)) %>% add_osm_feature(key = 'highway', value='tertiary') %>% osmdata_sf()
-tertiary      <- tertiary$osm_lines[,c('osm_id', 'geometry', 'lanes')]
-roads         <- rbind(primary, secondary, motorway, residential, trunk, tertiary)
+
+primary           <- opq(bbox = c(min_x, min_y, max_x, max_y)) %>% add_osm_feature(key = 'highway', value='primary') %>% osmdata_sp()
+primary           <- primary$osm_lines[,c('lanes')]
+primary$type      <- 'primary'
+secondary         <- opq(bbox = c(min_x, min_y, max_x, max_y)) %>% add_osm_feature(key = 'highway', value='secondary') %>% osmdata_sp()
+secondary         <- secondary$osm_lines[,c('lanes')]
+secondary$type    <- 'secondary'
+motorway          <- opq(bbox = c(min_x, min_y, max_x, max_y)) %>% add_osm_feature(key = 'highway', value='motorway') %>% osmdata_sp()
+motorway          <- motorway$osm_lines[,c('lanes')]
+motorway$type     <- 'motorway'
+residential       <- opq(bbox = c(min_x, min_y, max_x, max_y)) %>% add_osm_feature(key = 'highway', value='residential') %>% osmdata_sp()
+residential       <- residential$osm_lines[,c('lanes')]
+residential$type  <- 'residential'
+trunk             <- opq(bbox = c(min_x, min_y, max_x, max_y)) %>% add_osm_feature(key = 'highway', value='trunk') %>% osmdata_sp()
+trunk             <- trunk$osm_lines[,c('lanes')]
+trunk$type        <- 'trunk'
+tertiary          <- opq(bbox = c(min_x, min_y, max_x, max_y)) %>% add_osm_feature(key = 'highway', value='tertiary') %>% osmdata_sp()
+tertiary          <- tertiary$osm_lines[,c('lanes')]
+trunk$type        <- 'trunk'
+
+roads             <- rbind(primary, secondary, motorway, residential, trunk, tertiary)
 rm(primary, secondary, motorway, residential, trunk, tertiary)
 
 ```
