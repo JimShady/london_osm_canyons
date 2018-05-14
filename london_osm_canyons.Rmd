@@ -72,9 +72,9 @@ secondary$type    <- 'secondary'
 motorway          <- opq(bbox = c(min_x, min_y, max_x, max_y)) %>% add_osm_feature(key = 'highway', value='motorway') %>% osmdata_sp()
 motorway          <- motorway$osm_lines[,c('lanes')]
 motorway$type     <- 'motorway'
-residential       <- opq(bbox = c(min_x, min_y, max_x, max_y)) %>% add_osm_feature(key = 'highway', value='residential') %>% osmdata_sp()
-residential       <- residential$osm_lines[,c('lanes')]
-residential$type  <- 'residential'
+#residential       <- opq(bbox = c(min_x, min_y, max_x, max_y)) %>% add_osm_feature(key = 'highway', value='residential') %>% osmdata_sp()
+#residential       <- residential$osm_lines[,c('lanes')]
+#residential$type  <- 'residential'
 trunk             <- opq(bbox = c(min_x, min_y, max_x, max_y)) %>% add_osm_feature(key = 'highway', value='trunk') %>% osmdata_sp()
 trunk             <- trunk$osm_lines[,c('lanes')]
 trunk$type        <- 'trunk'
@@ -82,7 +82,7 @@ tertiary          <- opq(bbox = c(min_x, min_y, max_x, max_y)) %>% add_osm_featu
 tertiary          <- tertiary$osm_lines[,c('lanes')]
 tertiary$type     <- 'tertiary'
 
-roads             <- rbind(primary, secondary, motorway, residential, trunk, tertiary)
+roads             <- rbind(primary, secondary, motorway, trunk, tertiary) # Could add residential here
 
 rm(primary, secondary, motorway, residential, trunk, tertiary)
 ```
