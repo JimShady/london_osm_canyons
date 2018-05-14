@@ -15,6 +15,7 @@ knit: (function(inputFile, encoding) {
 ```{r include=F}
 library(osmdata)
 library(raster)
+library(ggplot2)
 ```
 
 
@@ -37,13 +38,16 @@ title('Raster file of London Building heights (zoomed)')
 ### Get the boundary for the data we want to download
 ```{r }
 
-latlong <- CRS("+init=epsg:4326")
-extent  <- projectRaster(london_raster, crs=latlong)
-extent  <- bbox(extent)
-min_x   <- extent[2,1]
-max_x   <- extent[2,2]
-min_y   <- extent[1,1]
-max_y   <- extent[1,2]
+latlong             <- CRS("+init=epsg:4326")
+extent              <- extent(london_raster)
+extent              <- as(extent, 'SpatialPolygons')
+proj4string(extent) <- crs(london_raster)
+extent              <- spTransform(extent, latlong)
+
+min_x   <- extent(extent)[1]
+max_x   <- extent(extent)[2]
+min_y   <- extent(extent)[3]
+max_y   <- extent(extent)[4]
 rm(extent)
 ```
 
@@ -54,11 +58,21 @@ available_tags('highway')
 ```
 
 ```{r}
-#roads   <- opq(bbox = c(min_x, min_y, max_x, max_y)) %>% 
-#            add_osm_feature(key = 'highway', value='primary') %>%
-#            osmdata_sf()
+primary       <- opq(bbox = c(min_x, min_y, max_x, max_y)) %>% add_osm_feature(key = 'highway', value='primary') %>% osmdata_sf()
+primary       <- primary$osm_lines[,c('osm_id', 'geometry', 'lanes')]
+secondary     <- opq(bbox = c(min_x, min_y, max_x, max_y)) %>% add_osm_feature(key = 'highway', value='secondary') %>% osmdata_sf()
+secondary     <- secondary$osm_lines[,c('osm_id', 'geometry', 'lanes')]
+motorway      <- opq(bbox = c(min_x, min_y, max_x, max_y)) %>% add_osm_feature(key = 'highway', value='motorway') %>% osmdata_sf()
+motorway      <- motorway$osm_lines[,c('osm_id', 'geometry', 'lanes')]
+residential   <- opq(bbox = c(min_x, min_y, max_x, max_y)) %>% add_osm_feature(key = 'highway', value='residential') %>% osmdata_sf()
+residential   <- residential$osm_lines[,c('osm_id', 'geometry', 'lanes')]
+trunk         <- opq(bbox = c(min_x, min_y, max_x, max_y)) %>% add_osm_feature(key = 'highway', value='trunk') %>% osmdata_sf()
+trunk         <- trunk$osm_lines[,c('osm_id', 'geometry', 'lanes')]
+tertiary      <- opq(bbox = c(min_x, min_y, max_x, max_y)) %>% add_osm_feature(key = 'highway', value='tertiary') %>% osmdata_sf()
+tertiary      <- tertiary$osm_lines[,c('osm_id', 'geometry', 'lanes')]
+roads         <- c(primary, secondary, motorway, residential, trunk, tertiary)
+rm(primary, secondary, motorway, residential, trunk, tertiary)
 
-#plot.sf(roads)
 ```
 
 Get the roads. Do some sort of filtering to only main roads. Make a buffer around them (dynamically?) and select the average building height from the raster layer. Then get the bearing. Create some rules for road width based on type of the road. Also need to calculate the bearing.
