@@ -58,6 +58,7 @@ available_tags('highway')
 ```
 
 ```{r}
+set_overpass_url('https://overpass.kumi.systems/api/interpreter')
 primary       <- opq(bbox = c(min_x, min_y, max_x, max_y)) %>% add_osm_feature(key = 'highway', value='primary') %>% osmdata_sf()
 primary       <- primary$osm_lines[,c('osm_id', 'geometry', 'lanes')]
 secondary     <- opq(bbox = c(min_x, min_y, max_x, max_y)) %>% add_osm_feature(key = 'highway', value='secondary') %>% osmdata_sf()
@@ -70,7 +71,7 @@ trunk         <- opq(bbox = c(min_x, min_y, max_x, max_y)) %>% add_osm_feature(k
 trunk         <- trunk$osm_lines[,c('osm_id', 'geometry', 'lanes')]
 tertiary      <- opq(bbox = c(min_x, min_y, max_x, max_y)) %>% add_osm_feature(key = 'highway', value='tertiary') %>% osmdata_sf()
 tertiary      <- tertiary$osm_lines[,c('osm_id', 'geometry', 'lanes')]
-roads         <- c(primary, secondary, motorway, residential, trunk, tertiary)
+roads         <- rbind(primary, secondary, motorway, residential, trunk, tertiary)
 rm(primary, secondary, motorway, residential, trunk, tertiary)
 
 ```

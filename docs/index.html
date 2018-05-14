@@ -120,7 +120,7 @@ $(document).ready(function () {
 
 <h1 class="title toc-ignore">Determining whether London streets are air quality canyons</h1>
 <h4 class="author"><em>James Smith</em></h4>
-<h4 class="date"><em>2018-05-13 19:08</em></h4>
+<h4 class="date"><em>2018-05-14 11:46</em></h4>
 
 </div>
 
@@ -140,13 +140,16 @@ title('Raster file of London Building heights (zoomed)')</code></pre>
 <h2>Import OSM roads for the same area as the raster</h2>
 <div id="get-the-boundary-for-the-data-we-want-to-download" class="section level3">
 <h3>Get the boundary for the data we want to download</h3>
-<pre class="r"><code>latlong &lt;- CRS(&quot;+init=epsg:4326&quot;)
-extent  &lt;- projectRaster(london_raster, crs=latlong)
-extent  &lt;- bbox(extent)
-min_x   &lt;- extent[2,1]
-max_x   &lt;- extent[2,2]
-min_y   &lt;- extent[1,1]
-max_y   &lt;- extent[1,2]
+<pre class="r"><code>latlong             &lt;- CRS(&quot;+init=epsg:4326&quot;)
+extent              &lt;- extent(london_raster)
+extent              &lt;- as(extent, 'SpatialPolygons')
+proj4string(extent) &lt;- crs(london_raster)
+extent              &lt;- spTransform(extent, latlong)
+
+min_x   &lt;- extent(extent)[1]
+max_x   &lt;- extent(extent)[2]
+min_y   &lt;- extent(extent)[3]
+max_y   &lt;- extent(extent)[4]
 rm(extent)</code></pre>
 <p>Using the <a href="https://cran.r-project.org/web/packages/osmdata/osmdata.pdf">osmdata package</a> we can download osmdata for the above bounding box. Roads have the value ‘highway’ in <a href="https://en.wikipedia.org/wiki/OpenStreetMap">OpenStreetMap</a>. Within that heading, we can also filter using the following tags:</p>
 <pre class="r"><code>available_tags('highway')</code></pre>
@@ -171,11 +174,21 @@ rm(extent)</code></pre>
 ## [37] &quot;track&quot;                  &quot;traffic signals&quot;       
 ## [39] &quot;trunk&quot;                  &quot;trunk link&quot;            
 ## [41] &quot;turning circle&quot;         &quot;unclassified&quot;</code></pre>
-<pre class="r"><code>#roads   &lt;- opq(bbox = c(min_x, min_y, max_x, max_y)) %&gt;% 
-#            add_osm_feature(key = 'highway', value='primary') %&gt;%
-#            osmdata_sf()
-
-#plot.sf(roads)</code></pre>
+<pre class="r"><code>set_overpass_url('https://overpass.kumi.systems/api/interpreter')
+primary       &lt;- opq(bbox = c(min_x, min_y, max_x, max_y)) %&gt;% add_osm_feature(key = 'highway', value='primary') %&gt;% osmdata_sf()
+primary       &lt;- primary$osm_lines[,c('osm_id', 'geometry', 'lanes')]
+secondary     &lt;- opq(bbox = c(min_x, min_y, max_x, max_y)) %&gt;% add_osm_feature(key = 'highway', value='secondary') %&gt;% osmdata_sf()
+secondary     &lt;- secondary$osm_lines[,c('osm_id', 'geometry', 'lanes')]
+motorway      &lt;- opq(bbox = c(min_x, min_y, max_x, max_y)) %&gt;% add_osm_feature(key = 'highway', value='motorway') %&gt;% osmdata_sf()
+motorway      &lt;- motorway$osm_lines[,c('osm_id', 'geometry', 'lanes')]
+residential   &lt;- opq(bbox = c(min_x, min_y, max_x, max_y)) %&gt;% add_osm_feature(key = 'highway', value='residential') %&gt;% osmdata_sf()
+residential   &lt;- residential$osm_lines[,c('osm_id', 'geometry', 'lanes')]
+trunk         &lt;- opq(bbox = c(min_x, min_y, max_x, max_y)) %&gt;% add_osm_feature(key = 'highway', value='trunk') %&gt;% osmdata_sf()
+trunk         &lt;- trunk$osm_lines[,c('osm_id', 'geometry', 'lanes')]
+tertiary      &lt;- opq(bbox = c(min_x, min_y, max_x, max_y)) %&gt;% add_osm_feature(key = 'highway', value='tertiary') %&gt;% osmdata_sf()
+tertiary      &lt;- tertiary$osm_lines[,c('osm_id', 'geometry', 'lanes')]
+roads         &lt;- rbind(primary, secondary, motorway, residential, trunk, tertiary)
+rm(primary, secondary, motorway, residential, trunk, tertiary)</code></pre>
 <p>Get the roads. Do some sort of filtering to only main roads. Make a buffer around them (dynamically?) and select the average building height from the raster layer. Then get the bearing. Create some rules for road width based on type of the road. Also need to calculate the bearing.</p>
 </div>
 </div>
