@@ -78,11 +78,11 @@ motorway$type     <- 'motorway'
 trunk             <- opq(bbox = c(min_x, min_y, max_x, max_y)) %>% add_osm_feature(key = 'highway', value='trunk') %>% osmdata_sp()
 trunk             <- trunk$osm_lines[,c('lanes')]
 trunk$type        <- 'trunk'
-tertiary          <- opq(bbox = c(min_x, min_y, max_x, max_y)) %>% add_osm_feature(key = 'highway', value='tertiary') %>% osmdata_sp()
-tertiary          <- tertiary$osm_lines[,c('lanes')]
-tertiary$type     <- 'tertiary'
+#tertiary          <- opq(bbox = c(min_x, min_y, max_x, max_y)) %>% add_osm_feature(key = 'highway', value='tertiary') %>% osmdata_sp()
+#tertiary          <- tertiary$osm_lines[,c('lanes')]
+#tertiary$type     <- 'tertiary'
 
-roads             <- rbind(primary, secondary, motorway, trunk, tertiary) # Could add residential here
+roads             <- rbind(primary, secondary, motorway, trunk) # Could add residential and tertiary here
 
 rm(primary, secondary, motorway, residential, trunk, tertiary)
 ```
@@ -93,7 +93,10 @@ Now that we have a SpatialLinesDataFrame of all the London roads, we delete the 
 roads             <- roads[!grepl(';', roads$lanes),]
 roads             <- roads[!grepl('.', roads$lanes),]
 
-table(roads$type)
+
+data.frame( type = data.frame(table(roads$type))$Var1, count = data.frame(table(roads$type))$Freq)
+
+
 ```
 
 Presuming that a lane is 3.15 metres wide, each road width is now calculated and added to the dataset. Where roads do not have numebrs of lanes given, the following are presumed:
@@ -108,7 +111,7 @@ table <- "
 | Secondary   |   2   |
 |:-----------:|:-----:|
 | Motorway    |   6   |
-|:----------:-|:-----:|
+|:-----------:|:-----:|
 | Residential |   2   |
 |:-----------:|:-----:|
 | Trunk       |   4   |
@@ -132,16 +135,16 @@ roads[roads$type == 'tertiary'    & is.na(roads$lanes),'lanes'] <- 2
 
 roads$width      <- as.numeric(roads$lanes) * 3.15
 
-aggregate(width ~ type, data=roads FUN=count)
-table(roads$type, roads$width)
+aggregate(width ~ type, data=roads, FUN=mean)
 
 ```
 
-The map below shows all non-residential roads (as there are too many residential roads to plot effectively.)
+The map below shows roads currently in the dataset
 
 ```{r}
-ggplot(st_as_sf(roads[roads$type != 'residential',])[1:50,], aes(colour = type, fill=type)) + 
+ggplot(st_as_sf(roads), aes(colour = type, fill=type)) + 
   geom_sf() +
+  ggtitle('Downloaded OSM roads, by road type') +
   theme(axis.text = element_blank(),
         panel.background = element_blank(),
         axis.ticks = element_blank(),
@@ -151,8 +154,9 @@ ggplot(st_as_sf(roads[roads$type != 'residential',])[1:50,], aes(colour = type, 
 Now we draw a buffer of 10 metres around each of the roads, and take the mean of the building heights from the 'london_raster' layer. To do that we first convert the data from WGS84, then to British National Grid, make the polygons, convert these to same CRS as the london_raster, then extract the heights.
 
 ```{r}
-ukgrid       <- "+init=epsg:27700"
-roads        <- spTransform(roads, ukgrid)
+ukgrid            <- "+init=epsg:27700"
+roads             <- spTransform(roads, ukgrid)
+roads             <- st_as_sf(roads)
 
 
 
