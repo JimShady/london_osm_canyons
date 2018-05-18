@@ -17,10 +17,14 @@ devtools::install_github("ropensci/osmdata")
 library(osmdata)
 library(raster)
 library(ggplot2)
+library(rgeos)
 library(maptools)
+library(rgdal)
+devtools::install_github("r-spatial/sf")
 library(sf)
 library(rgeos)
 library(data.table)
+library(knitr)
 ```
 
 
@@ -149,40 +153,55 @@ ggplot(roads, aes(colour = type, fill=type)) +
         legend.position = 'bottom')
 ```
 
-Now we draw two buffers around the roads, one of 10 metres and one of 15 metres. We then take the difference of these two. This resulting 'ring' (shown in red below) will be used as the area to extract building heights from the 'london_raster' layer. The ID values shown as 'roads_to_remove' as roads that are circular, and not suitable for this process.
+Then with the raster and the roads together (after transforming the roads to the same CRS as the raster)
+
+```{r sanity_check}
+roads <- st_transform(roads, crs(london_raster)@projargs)
+
+plot(london_raster, xlim=c(3621000, 3622000), ylim = c(3204000,3205000))
+plot(st_geometry(roads), add=T)
+
+```
+
+Now we are going to draw two buffers around the roads, one of 10 metres and one of 15 metres. We then take the difference of these two. This resulting 'ring' (shown in red below) will be used as the area to extract building heights from the 'london_raster' layer. The ID values shown as 'roads_to_remove' as roads that are circular, and not suitable for this process. We also need to turn it into a projected CRS before buffering
 
 ```{r, warning=F}
 roads_to_ignore         <- c(9393,11079,14595,15578)
 roads                   <- roads[-roads_to_ignore,]
 
-new_roads               <- st_transform(roads, 27700) ## somehting going wrong here
+roads                   <- st_transform(roads, 27700)
 
 roads$area              <- st_geometry(st_buffer(roads, dist = 15)) / st_geometry(st_buffer(roads, dist = 10))
 
-ggplot(roads[4,]) +
-     geom_sf(aes(geometry=area),fill='red') +
-      geom_sf(aes(geometry=geometry), fill = 'black') +
-  ggtitle('Road sampling area (red)') +
-  theme(axis.text = element_blank(),
-        panel.background = element_blank(),
-        axis.ticks = element_blank())
+roads$geometry          <- st_transform(roads$geometry, crs(london_raster)@projargs)
+roads$area              <- st_transform(roads$area, crs(london_raster)@projargs)
+
+plot(london_raster, xlim=c(3621100, 36213000), ylim = c(3204000,3205000))
+plot(st_geometry(roads$area), add=T, xlim=c(3621100, 3621300), ylim = c(3204000,3205000))
 ```
 
-Now that we have polygon-rings for each road, we can extract the mean building height covered by this ring. First need to reproject the roads to the same as the raster and visually check it's ok
+Now that we have polygon-rings for each road, we can extract the mean building height covered by this ring. Here's an illustration of a road.
 
-```{r}
-roads <- st_transform(roads, crs(london_raster)@projargs)
+```{r include = F}
+test_raster <- extent(st_bbox(roads[4,])$xmin-40, st_bbox(roads[4,])$xmax+40, 
+                      st_bbox(roads[4,])$ymin-40, st_bbox(roads[4,])$ymax+40)
+test_raster <- crop(london_raster, test_raster)
 
-plot(london_raster)
-plot(st_geometry(roads), add=T)
+mapview(test_raster, alpha.regions = 0.4) %>% addFeatures(st_transform(roads[4,]$area,4326))
 ```
 
-Now going to extract the vales for each road from the raster, using the buffer 'rings' from earlier.
+These go into new columns in the 'roads' data. Need to work on this bit. Look at function and lapply
 
-```{r}
-plot(st_geometry(roads[4,]$area))
-plot(london_raster,add=T)
-plot(st_geometry(roads[4,]$area), add=T)
+````{r extracting_heights}
+road_polygons   <- as(roads$area,'Spatial')
+
+values(london_raster)[is.na(values(london_raster))] <- 0
+
+roads$mean_non_zero_height  <- extract(london_raster, road_polygons, weights=TRUE, na.rm = T, fun=mean)[,1]
+
+roads$percent_zero          <- 
+  
+roads$mean_height           <- extract(london_raster, road_polygons, weights=TRUE, na.rm = F, fun=mean)[,1]
+
 
 ```
-Get the roads. Do some sort of filtering to only main roads. Make a buffer around them (dynamically?) and select the average building height from the raster layer. Then get the bearing. Create some rules for road width based on type of the road. Also need to calculate the bearing.
