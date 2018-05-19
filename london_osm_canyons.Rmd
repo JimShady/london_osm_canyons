@@ -20,10 +20,14 @@ library(osmdata)
 library(raster)
 devtools::install_github("tidyverse/ggplot2")
 library(ggplot2)
+library(rgeos)
 library(maptools)
+library(rgdal)
+devtools::install_github("r-spatial/sf")
 library(sf)
 library(rgeos)
 library(data.table)
+library(knitr)
 ```
 
 
@@ -46,10 +50,10 @@ title('Raster file of London Building heights (zoomed)')
 ### Get the boundary for the data we want to download
 ```{r }
 
-latlong             <- CRS("+init=epsg:4326")
 extent              <- extent(london_raster)
 extent              <- as(extent, 'SpatialPolygons')
 proj4string(extent) <- crs(london_raster)
+latlong             <- CRS("+init=epsg:4326")
 extent              <- spTransform(extent, latlong)
 
 min_x   <- extent(extent)[1]
@@ -69,27 +73,28 @@ available_tags('highway')
 primary           <- opq(bbox = c(min_x, min_y, max_x, max_y)) %>% add_osm_feature(key = 'highway', value='primary') %>% osmdata_sf()
 primary           <- primary$osm_lines[,c('osm_id', 'lanes', 'geometry')]
 primary$type      <- 'primary'
-primary           <- as(primary, 'Spatial')
-secondary         <- opq(bbox = c(min_x, min_y, max_x, max_y)) %>% add_osm_feature(key = 'highway', value='secondary') %>% osmdata_sf()
-secondary         <- secondary$osm_lines[,c('osm_id', 'lanes', 'geometry')]
-secondary$type    <- 'secondary'
-secondary         <- as(secondary, 'Spatial')
-motorway          <- opq(bbox = c(min_x, min_y, max_x, max_y)) %>% add_osm_feature(key = 'highway', value='motorway') %>% osmdata_sf()
-motorway          <- motorway$osm_lines[,c('osm_id', 'lanes', 'geometry')]
-motorway$type     <- 'motorway'
-motorway          <- as(motorway, 'Spatial')
+
+#secondary         <- opq(bbox = c(min_x, min_y, max_x, max_y)) %>% add_osm_feature(key = 'highway', value='secondary') %>% osmdata_sf()
+#secondary         <- secondary$osm_lines[,c('osm_id', 'lanes', 'geometry')]
+#secondary$type    <- 'secondary'
+
+#motorway          <- opq(bbox = c(min_x, min_y, max_x, max_y)) %>% add_osm_feature(key = 'highway', value='motorway') %>% osmdata_sf()
+#motorway          <- motorway$osm_lines[,c('osm_id', 'lanes', 'geometry')]
+#motorway$type     <- 'motorway'
+
 #residential       <- opq(bbox = c(min_x, min_y, max_x, max_y)) %>% add_osm_feature(key = 'highway', value='residential') %>% osmdata_sp()
 #residential       <- residential$osm_lines[,c('lanes')]
 #residential$type  <- 'residential'
-trunk             <- opq(bbox = c(min_x, min_y, max_x, max_y)) %>% add_osm_feature(key = 'highway', value='trunk') %>% osmdata_sf()
-trunk             <- trunk$osm_lines[,c('osm_id', 'lanes', 'geometry')]
-trunk$type        <- 'trunk'
-trunk             <- as(trunk, 'Spatial')
+#trunk             <- opq(bbox = c(min_x, min_y, max_x, max_y)) %>% add_osm_feature(key = 'highway', value='trunk') %>% osmdata_sf()
+#trunk             <- trunk$osm_lines[,c('osm_id', 'lanes', 'geometry')]
+#trunk$type        <- 'trunk'
+
 #tertiary          <- opq(bbox = c(min_x, min_y, max_x, max_y)) %>% add_osm_feature(key = 'highway', value='tertiary') %>% osmdata_sp()
 #tertiary          <- tertiary$osm_lines[,c('lanes')]
 #tertiary$type     <- 'tertiary'
 
-roads             <- rbind(primary, secondary, motorway, trunk) # Could add residential and tertiary here
+#roads             <- rbind(primary, secondary, motorway, trunk) # Could add residential and tertiary here
+roads             <- rbind(primary) # Could add residential and tertiary here
 roads$osm_id      <- as.numeric(as.character(roads$osm_id))
 
 rm(primary, secondary, motorway, trunk)
@@ -99,7 +104,6 @@ Now that we have a SpatialLinesDataFrame of all the London roads, we delete the 
 
 ```{r}
 roads             <- roads[!grepl(';', roads$lanes),]
-roads             <- roads[!grepl('.', roads$lanes),]
 
 ```
 
@@ -129,8 +133,6 @@ Presuming that a lane is 3.15 metres wide, each road width is now calculated and
 
 ```{r}
 
-roads$lanes   <- as.numeric(as.character(roads$lanes))
-
 roads[roads$type == 'primary'     & is.na(roads$lanes),'lanes'] <- 2
 roads[roads$type == 'secondary'   & is.na(roads$lanes),'lanes'] <- 2
 roads[roads$type == 'motorway'    & is.na(roads$lanes),'lanes'] <- 6
@@ -145,7 +147,7 @@ roads$width      <- as.numeric(roads$lanes) * 3.15
 The map below shows roads currently in the dataset, coloured by type
 
 ```{r}
-ggplot(st_as_sf(roads), aes(colour = type, fill=type)) + 
+ggplot(roads, aes(colour = type, fill=type)) + 
   geom_sf() +
   ggtitle('Downloaded OSM roads, by road type') +
   theme(axis.text = element_blank(),
@@ -154,49 +156,55 @@ ggplot(st_as_sf(roads), aes(colour = type, fill=type)) +
         legend.position = 'bottom')
 ```
 
-Now we draw two buffers around the roads, one of 10 metres and one of 15 metres. We then take the difference of these two. This resulting 'ring' (shown in red below) will be used as the area to extract building heights from the 'london_raster' layer. The ID values shown as 'roads_to_remove' as roads that are circular, and not suitable for this process.
+Then with the raster and the roads together (after transforming the roads to the same CRS as the raster)
 
-```{r}
-ukgrid                  <- "+init=epsg:27700"
-roads                   <- spTransform(roads, ukgrid)
+```{r sanity_check}
+roads <- st_transform(roads, crs(london_raster)@projargs)
+
+plot(london_raster, xlim=c(3621000, 3622000), ylim = c(3204000,3205000))
+plot(st_geometry(roads), add=T)
+
+```
+
+Now we are going to draw two buffers around the roads, one of 10 metres and one of 15 metres. We then take the difference of these two. This resulting 'ring' (shown in red below) will be used as the area to extract building heights from the 'london_raster' layer. The ID values shown as 'roads_to_remove' as roads that are circular, and not suitable for this process. We also need to turn it into a projected CRS before buffering
+
+```{r, warning=F}
 roads_to_ignore         <- c(9393,11079,14595,15578)
 roads                   <- roads[-roads_to_ignore,]
-#buffered_roads          <- gBuffer(roads, byid = T, width =  10, capStyle = 'ROUND')
-#extra_buffered_roads    <- gBuffer(roads, byid = T, width =  15, capStyle = 'ROUND')
 
-ggplot(st_as_sf(gBuffer(roads[4,], byid = T, width =  15, capStyle = 'ROUND'))) +
-  geom_sf(fill='red') +
-  geom_sf(data = st_as_sf(gBuffer(roads[4,], byid = T, width =  10, capStyle = 'ROUND')), fill='blue') +
-  geom_sf(data = st_as_sf(roads[4,]), col = 'white') +
-  ggtitle('A road with two buffers') +
-  theme(axis.text = element_blank(),
-        panel.background = element_blank(),
-        axis.ticks = element_blank())
+roads                   <- st_transform(roads, 27700)
+
+roads$area              <- st_geometry(st_buffer(roads, dist = 15)) / st_geometry(st_buffer(roads, dist = 10))
+
+roads$geometry          <- st_transform(roads$geometry, crs(london_raster)@projargs)
+roads$area              <- st_transform(roads$area, crs(london_raster)@projargs)
+
+plot(london_raster, xlim=c(3621100, 36213000), ylim = c(3204000,3205000))
+plot(st_geometry(roads$area), add=T, xlim=c(3621100, 3621300), ylim = c(3204000,3205000))
 ```
 
-```{r include=FALSE}
+Now that we have polygon-rings for each road, we can extract the mean building height covered by this ring. Here's an illustration of a road.
 
-for (i in 1:nrow(roads)) {
+```{r include = F}
+test_raster <- extent(st_bbox(roads[4,])$xmin-40, st_bbox(roads[4,])$xmax+40, 
+                      st_bbox(roads[4,])$ymin-40, st_bbox(roads[4,])$ymax+40)
+test_raster <- crop(london_raster, test_raster)
 
-  temp <- gDifference(gBuffer(roads[i,], byid = T, width =  15, capStyle = 'ROUND'), 
-                      gBuffer(roads[i,], byid = T, width =  10, capStyle = 'ROUND'))
-  
-  slot(slot(temp, "polygons")[[1]], "ID") <- as.character(roads[i,]$osm_id)
-  
-  if (i == 1 & class(temp)[1] == "SpatialPolygons") {difference <- temp}
-  
-  if (i > 1  & class(temp)[1] == "SpatialPolygons") {difference <- rbind(difference, temp)}
-  
-  rm(temp)
-  
-  print(i)
-  
-}
-
+mapview(test_raster, alpha.regions = 0.4) %>% addFeatures(st_transform(roads[4,]$area,4326))
 ```
 
+These go into new columns in the 'roads' data. Need to work on this bit. Look at function and lapply
 
-Now that we have polygon-rings for each road, we extract the mean building height covered by this ring. 
+````{r extracting_heights}
+road_polygons   <- as(roads$area,'Spatial')
+
+values(london_raster)[is.na(values(london_raster))] <- 0
+
+roads$mean_non_zero_height  <- extract(london_raster, road_polygons, weights=TRUE, na.rm = T, fun=mean)[,1]
+
+roads$percent_zero          <- 
+  
+roads$mean_height           <- extract(london_raster, road_polygons, weights=TRUE, na.rm = F, fun=mean)[,1]
 
 
-Get the roads. Do some sort of filtering to only main roads. Make a buffer around them (dynamically?) and select the average building height from the raster layer. Then get the bearing. Create some rules for road width based on type of the road. Also need to calculate the bearing.
+```
