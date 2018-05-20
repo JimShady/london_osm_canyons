@@ -3,17 +3,16 @@ title: "Determining whether London streets are air quality canyons"
 author: "James Smith"
 output:
   html_document:
-  toc: true
-toc_float: false
-toc_depth: 4
-collapsed: false
+    toc: true
+    toc_depth: 4
 date: "`r format(Sys.time(), '%Y-%m%-%d %H%:%M')`"
 knit: (function(inputFile, encoding) {
   rmarkdown::render(inputFile, encoding = encoding, output_dir = "docs", output_file ="index.html") })
 ---
 
-```{r include=F}
+```{r load libraries, include=F}
 library(devtools)
+devtools::install_github("r-spatial/sf")
 library(sf)
 devtools::install_github("ropensci/osmdata")
 library(osmdata)
@@ -23,8 +22,6 @@ library(ggplot2)
 library(rgeos)
 library(maptools)
 library(rgdal)
-devtools::install_github("r-spatial/sf")
-library(sf)
 library(rgeos)
 library(data.table)
 library(knitr)
@@ -35,7 +32,7 @@ library(mapview)
 ## Import building height data
 Downloaded from [Copernicus Urban Atlas](https://land.copernicus.eu/local/urban-atlas/building-height-2012?tab=mapview), unzipped and extracted. Now the London raster is imported.
 
-```{r }
+```{r get building rasters}
 
 london_raster <- raster('buildings_raster/UK001L2_LONDON_UA2012_DHM/UK001L2_LONdON_UA2012_DHM.tif')
 plot(london_raster)
@@ -49,7 +46,7 @@ title('Raster file of London Building heights (zoomed)')
 ## Import OSM roads for the same area as the raster
 
 ### Get the boundary for the data we want to download
-```{r }
+```{r get extent of the raster}
 
 extent              <- extent(london_raster)
 extent              <- as(extent, 'SpatialPolygons')
@@ -66,7 +63,7 @@ rm(extent)
 
 Using the [osmdata package](https://cran.r-project.org/web/packages/osmdata/osmdata.pdf) we can download osmdata for the above bounding box. Roads have the value 'highway' in [OpenStreetMap](https://en.wikipedia.org/wiki/OpenStreetMap). Within that heading, we can also filter using the following tags:
 
-```{r}
+```{r download data from osm, warning=F}
 available_tags('highway')
 ```
 
@@ -98,7 +95,7 @@ primary$type      <- 'primary'
 roads             <- rbind(primary) # Could add residential and tertiary here
 roads$osm_id      <- as.numeric(as.character(roads$osm_id))
 
-rm(primary, secondary, motorway, trunk)
+rm(primary)
 ```
 
 Now that we have a SpatialLinesDataFrame of all the London roads, we delete the ones where the 'lane' attribute is not formed properly or contains an error.
@@ -120,19 +117,14 @@ Presuming that a lane is 3.15 metres wide, each road width is now calculated and
 | Road type   | Lanes |
 |-------------|-------|
 | Primary     |   2   |
-|-------------|-------|
 | Secondary   |   2   |
-|-------------|-------|
 | Motorway    |   6   |
-|-------------|-------|
 | Residential |   2   |
-|-------------|-------|
 | Trunk       |   4   |
-|-------------|-------|
 | Tertiary    |   2   |
 
 
-```{r}
+```{r make road widths}
 
 roads[roads$type == 'primary'     & is.na(roads$lanes),'lanes'] <- 2
 roads[roads$type == 'secondary'   & is.na(roads$lanes),'lanes'] <- 2
@@ -147,7 +139,7 @@ roads$width      <- as.numeric(roads$lanes) * 3.15
 
 The map below shows roads currently in the dataset, coloured by type
 
-```{r}
+```{r show downloaded roads}
 ggplot(roads, aes(colour = type, fill=type)) + 
   geom_sf() +
   ggtitle('Downloaded OSM roads, by road type') +
@@ -157,19 +149,7 @@ ggplot(roads, aes(colour = type, fill=type)) +
         legend.position = 'bottom')
 ```
 
-Then with the raster and the roads together (after transforming the roads to the same CRS as the raster)
-
-```{r sanity_check}
-roads <- st_transform(roads, crs(london_raster)@projargs)
-
-plot(london_raster, xlim=c(3621000, 3622000), ylim = c(3204000,3205000))
-plot(st_geometry(roads), add=T)
-
-```
-
-Now we are going to draw two buffers around the roads, one of 10 metres and one of 15 metres. We then take the difference of these two. This resulting 'ring' (shown in red below) will be used as the area to extract building heights from the 'london_raster' layer. The ID values shown as 'roads_to_remove' as roads that are circular, and not suitable for this process. We also need to turn it into a projected CRS before buffering
-
-```{r, warning=F}
+```{r remove problem roads and make buffers}
 roads_to_ignore         <- c(9393,11079,14595,15578)
 roads                   <- roads[-roads_to_ignore,]
 
@@ -180,13 +160,22 @@ roads$area              <- st_geometry(st_buffer(roads, dist = 15)) / st_geometr
 roads$geometry          <- st_transform(roads$geometry, crs(london_raster)@projargs)
 roads$area              <- st_transform(roads$area, crs(london_raster)@projargs)
 
-plot(london_raster, xlim=c(3621100, 36213000), ylim = c(3204000,3205000))
-plot(st_geometry(roads$area), add=T, xlim=c(3621100, 3621300), ylim = c(3204000,3205000))
+
 ```
+
+Then with the raster and the roads together (after transforming the roads to the same CRS as the raster)
+
+```{r sanity_check}
+plot(london_raster, xlim=c(3621000, 3622000), ylim = c(3204000,3205000))
+plot(st_geometry(roads), xlim=c(3621000, 3622000), add=T)
+
+```
+
+Now we are going to draw two buffers around the roads, one of 10 metres and one of 15 metres. We then take the difference of these two. This resulting 'ring' (shown in red below) will be used as the area to extract building heights from the 'london_raster' layer. The ID values shown as 'roads_to_remove' as roads that are circular, and not suitable for this process. We also need to turn it into a projected CRS before buffering
 
 Now that we have polygon-rings for each road, we can extract the mean building height covered by this ring. Here's an illustration of a road.
 
-```{r include = F}
+```{r map view of a buffer}
 test_raster <- extent(st_bbox(roads[4,])$xmin-40, st_bbox(roads[4,])$xmax+40, 
                       st_bbox(roads[4,])$ymin-40, st_bbox(roads[4,])$ymax+40)
 test_raster <- crop(london_raster, test_raster)
@@ -196,7 +185,7 @@ mapview(test_raster, alpha.regions = 0.4) %>% addFeatures(st_transform(roads[4,]
 
 These go into new columns in the 'roads' data. Need to work on this bit. Look at function and lapply
 
-#```{r extracting_heights}
+```{r extracting_heights}
 #road_polygons   <- as(roads$area,'Spatial')
 
 #non_zero_means_function <- function(x) {
