@@ -25,6 +25,7 @@ library(sf)
 library(rgeos)
 library(data.table)
 library(knitr)
+library(mapview)
 ```
 
 
@@ -192,16 +193,15 @@ mapview(test_raster, alpha.regions = 0.4) %>% addFeatures(st_transform(roads[4,]
 
 These go into new columns in the 'roads' data. Need to work on this bit. Look at function and lapply
 
-````{r extracting_heights}
-road_polygons   <- as(roads$area,'Spatial')
+#```{r extracting_heights}
+#road_polygons   <- as(roads$area,'Spatial')
 
-values(london_raster)[is.na(values(london_raster))] <- 0
+#non_zero_means_function <- function(x) {
+#  mean <- mean(x[,], na.rm=T)
+#}
 
-roads$mean_non_zero_height  <- extract(london_raster, road_polygons, weights=TRUE, na.rm = T, fun=mean)[,1]
+#roads$mean_height_with_zeros  <- extract(london_raster, road_polygons, weights=TRUE, na.rm = F, fun=mean)[,1] #correct
 
-roads$percent_zero          <- 
-  
-roads$mean_height           <- extract(london_raster, road_polygons, weights=TRUE, na.rm = F, fun=mean)[,1]
-
+#roads$cell_count              <- extract(london_raster, road_polygons[1:10,], na.rm = F, fun=length)[,1] #correct
 
 ```
