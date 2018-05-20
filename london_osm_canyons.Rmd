@@ -13,9 +13,12 @@ knit: (function(inputFile, encoding) {
 ---
 
 ```{r include=F}
+library(devtools)
+library(sf)
 devtools::install_github("ropensci/osmdata")
 library(osmdata)
 library(raster)
+devtools::install_github("tidyverse/ggplot2")
 library(ggplot2)
 library(rgeos)
 library(maptools)
