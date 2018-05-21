@@ -157,9 +157,11 @@ roads                   <- st_transform(roads, 27700)
 
 roads$area              <- st_geometry(st_buffer(roads, dist = 15)) / st_geometry(st_buffer(roads, dist = 10))
 
+roads$geometry          <- st_transform(roads$geometry,4326)
+roads$area              <- st_transform(roads$area, 4326)
+
 roads$geometry          <- st_transform(roads$geometry, crs(london_raster)@projargs)
 roads$area              <- st_transform(roads$area, crs(london_raster)@projargs)
-
 
 ```
 
@@ -168,6 +170,7 @@ Then with the raster and the roads together (after transforming the roads to the
 ```{r sanity_check}
 plot(london_raster, xlim=c(3621000, 3622000), ylim = c(3204000,3205000))
 plot(st_geometry(roads), xlim=c(3621000, 3622000), add=T)
+plot(st_geometry(roads$area), xlim=c(3621000, 3622000), add=T)
 
 ```
 
@@ -176,17 +179,23 @@ Now we are going to draw two buffers around the roads, one of 10 metres and one 
 Now that we have polygon-rings for each road, we can extract the mean building height covered by this ring. Here's an illustration of a road.
 
 ```{r map view of a buffer}
-test_raster <- extent(st_bbox(roads[4,])$xmin-40, st_bbox(roads[4,])$xmax+40, 
-                      st_bbox(roads[4,])$ymin-40, st_bbox(roads[4,])$ymax+40)
+test_raster <- extent(st_bbox(roads[10,])$xmin-40, st_bbox(roads[10,])$xmax+40, 
+                      st_bbox(roads[10,])$ymin-40, st_bbox(roads[10,])$ymax+40)
 test_raster <- crop(london_raster, test_raster)
 
-mapview(test_raster, alpha.regions = 0.4) %>% addFeatures(st_transform(roads[4,]$area,4326))
+mapview(test_raster, alpha.regions = 0.4) %>% addFeatures(st_transform(roads[10,]$area,4326))
 ```
 
-These go into new columns in the 'roads' data. Need to work on this bit. Look at function and lapply
+These go into new columns in the 'roads' data.
 
 ```{r extracting_heights}
-#road_polygons   <- as(roads$area,'Spatial')
+road_polygons   <- as(roads$area,'Spatial')
+
+
+
+roads$cell_count              <- unlist(lapply(extract(london_raster, road_polygons, weights=T, na.rm=F), length))/2 #correct
+
+roads$weighted_mean           <- extract(london_raster, road_polygons, weights=T, fun = mean, na.rm=F)
 
 #non_zero_means_function <- function(x) {
 #  mean <- mean(x[,], na.rm=T)
