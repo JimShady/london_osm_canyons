@@ -191,18 +191,20 @@ These go into new columns in the 'roads' data.
 ```{r extracting_heights}
 road_polygons   <- as(roads$area,'Spatial')
 
+for (i in 1:nrow(roads)) {
+  
+  polygon <- road_polygons[i,]
+  
+  roads[i,'cell_count']                   <- length(extract(london_raster, polygon, weights=T, na.rm=F)[[1]][,1])
+  
+  roads[i,'weighted_mean']                <- extract(london_raster, polygon, weights=T, na.rm=F, fun=mean)[1]
+  
+  roads[i,'non_zero_non_weighted_mean']   <- mean(extract(london_raster, polygon, weights=T, na.rm=F)[[1]][extract(london_raster, polygon, weights=T, na.rm=F)[[1]][,1] != 0,1])
+  
+  roads[i,'zero_cells_count']             <- length(extract(london_raster, polygon, weights=T, na.rm=F)[[1]][extract(london_raster, polygon, weights=T, na.rm=F)[[1]][,1] == 0,1])
 
-
-roads$cell_count              <- unlist(lapply(extract(london_raster, road_polygons, weights=T, na.rm=F), length))/2 #correct
-
-roads$weighted_mean           <- extract(london_raster, road_polygons, weights=T, fun = mean, na.rm=F)
-
-#non_zero_means_function <- function(x) {
-#  mean <- mean(x[,], na.rm=T)
-#}
-
-#roads$mean_height_with_zeros  <- extract(london_raster, road_polygons, weights=TRUE, na.rm = F, fun=mean)[,1] #correct
-
-#roads$cell_count              <- extract(london_raster, road_polygons[1:10,], na.rm = F, fun=length)[,1] #correct
+  print(i)
+  
+}
 
 ```
