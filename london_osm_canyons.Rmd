@@ -183,13 +183,16 @@ test_raster <- extent(st_bbox(roads[10,])$xmin-40, st_bbox(roads[10,])$xmax+40,
                       st_bbox(roads[10,])$ymin-40, st_bbox(roads[10,])$ymax+40)
 test_raster <- crop(london_raster, test_raster)
 
-mapview(test_raster, alpha.regions = 0.4) %>% addFeatures(st_transform(roads[10,]$area,4326))
+mapview(test_raster, alpha.regions = 0.4, map.types = 'OpenStreetMap.BlackAndWhite') %>% addFeatures(st_transform(roads[10,]$area,4326))
 ```
 
 These go into new columns in the 'roads' data.
 
 ```{r extracting_heights}
 road_polygons   <- as(roads$area,'Spatial')
+
+roads$weighted_mean <- extract(london_raster, road_polygons, weights=T, na.rm=F, fun=mean)
+
 
 for (i in 1:nrow(roads)) {
   
