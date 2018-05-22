@@ -34,7 +34,7 @@ Downloaded from [Copernicus Urban Atlas](https://land.copernicus.eu/local/urban-
 
 ```{r get building rasters}
 
-london_raster <- raster('buildings_raster/UK001L2_LONDON_UA2012_DHM/UK001L2_LONdON_UA2012_DHM.tif')
+london_raster <- raster('buildings_raster/UK001L2_LONDON_UA2012_DHM/UK001L2_LONDON_UA2012_DHM.tif')
 plot(london_raster)
 title('Raster file of London Building heights')
 
