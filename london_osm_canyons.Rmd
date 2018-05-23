@@ -95,7 +95,7 @@ primary$type      <- 'primary'
 roads             <- rbind(primary) # Could add residential and tertiary here
 roads$osm_id      <- as.numeric(as.character(roads$osm_id))
 
-rm(primary)
+rm(primary, max_x, min_x, min_y, max_y)
 ```
 
 Now that we have a SpatialLinesDataFrame of all the London roads, we delete the ones where the 'lane' attribute is not formed properly or contains an error.
@@ -163,6 +163,8 @@ roads$area              <- st_transform(roads$area, 4326)
 roads$geometry          <- st_transform(roads$geometry, crs(london_raster)@projargs)
 roads$area              <- st_transform(roads$area, crs(london_raster)@projargs)
 
+rm(roads_to_ignore)
+
 ```
 
 Then with the raster and the roads together (after transforming the roads to the same CRS as the raster)
@@ -179,17 +181,20 @@ Now we are going to draw two buffers around the roads, one of 10 metres and one 
 Now that we have polygon-rings for each road, we can extract the mean building height covered by this ring. Here's an illustration of a road.
 
 ```{r map view of a buffer}
-test_raster <- extent(st_bbox(roads[10,])$xmin-40, st_bbox(roads[10,])$xmax+40, 
+temp_raster <- extent(st_bbox(roads[10,])$xmin-40, st_bbox(roads[10,])$xmax+40, 
                       st_bbox(roads[10,])$ymin-40, st_bbox(roads[10,])$ymax+40)
-test_raster <- crop(london_raster, test_raster)
+temp_raster <- crop(london_raster, temp_raster)
 
-mapview(test_raster, alpha.regions = 0.4, map.types = 'OpenStreetMap.BlackAndWhite') %>% addFeatures(st_transform(roads[10,]$area,4326))
+mapview(temp_raster, alpha.regions = 0.4, map.types = 'OpenStreetMap.BlackAndWhite') %>% addFeatures(st_transform(roads[10,]$area,4326))
+
+rm(temp_raster)
 ```
 
 These go into new columns in the 'roads' data.
 
 ```{r extracting_heights}
-road_polygons   <- as(roads$area,'Spatial')
+road_polygons       <- as(roads$area,'Spatial')[1:50,]
+roads$area          <- NULL 
 
 roads$weighted_mean <- NA
 roads$cell_count    <- NA
@@ -199,6 +204,8 @@ roads$weighted_mean <- extract(london_raster, road_polygons, weights=T, na.rm=F,
 roads$cell_count    <- unlist(lapply(extract(london_raster, road_polygons, weights=T, na.rm=F), FUN = function(x)(length(x[,1]))))
 roads$zero_cells    <- unlist(lapply(extract(london_raster, road_polygons, weights=T, na.rm=F), FUN = function(x)(sum(x[,1]==0))))
 
-head(roads)
+roads$geometry      <- st_transform(roads$geometry, 4326)
+
+saveRDS(roads, file = "roads_output.rds")
 
 ```
