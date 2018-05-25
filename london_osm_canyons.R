@@ -1,3 +1,5 @@
+rm(list=ls(all=TRUE)) 
+
 library(devtools)
 devtools::install_github("r-spatial/sf")
 library(sf)
@@ -31,42 +33,51 @@ max_y   <- extent(extent)[4]
 rm(extent)
 
 print('loading roads')
+
 primary           <- opq(bbox = c(min_x, min_y, max_x, max_y)) %>% add_osm_feature(key = 'highway', value='primary') %>% osmdata_sf()
 primary           <- primary$osm_lines[,c('osm_id', 'lanes', 'geometry')]
 primary$type      <- 'primary'
+
+print('loaded primary')
 
 secondary         <- opq(bbox = c(min_x, min_y, max_x, max_y)) %>% add_osm_feature(key = 'highway', value='secondary') %>% osmdata_sf()
 secondary         <- secondary$osm_lines[,c('osm_id', 'lanes', 'geometry')]
 secondary$type    <- 'secondary'
 
+print('loaded secondary')
+
 motorway          <- opq(bbox = c(min_x, min_y, max_x, max_y)) %>% add_osm_feature(key = 'highway', value='motorway') %>% osmdata_sf()
 motorway          <- motorway$osm_lines[,c('osm_id', 'lanes', 'geometry')]
 motorway$type     <- 'motorway'
 
-residential       <- opq(bbox = c(min_x, min_y, max_x, max_y)) %>% add_osm_feature(key = 'highway', value='residential') %>% osmdata_sf()
-residential       <- residential$osm_lines[,c('osm_id', 'lanes', 'geometry')]
-residential$type  <- 'residential'
+print('loaded motorway')
 
 trunk             <- opq(bbox = c(min_x, min_y, max_x, max_y)) %>% add_osm_feature(key = 'highway', value='trunk') %>% osmdata_sf()
 trunk             <- trunk$osm_lines[,c('osm_id', 'lanes', 'geometry')]
 trunk$type        <- 'trunk'
 
+print('loaded trunk')
+
 tertiary          <- opq(bbox = c(min_x, min_y, max_x, max_y)) %>% add_osm_feature(key = 'highway', value='tertiary') %>% osmdata_sf()
 tertiary          <- tertiary$osm_lines[,c('osm_id', 'lanes', 'geometry')]
 tertiary$type     <- 'tertiary'
 
+print('loaded tertiary')
+
 print('binding roads')
-roads             <- rbind(primary, secondary, motorway, residential, trunk, tertiary) 
+
+roads             <- rbind(primary, secondary, motorway, trunk, tertiary) 
 roads$osm_id      <- as.numeric(as.character(roads$osm_id))
 
-rm(primary, secondary, motorway, residential, trunk, tertiary, max_x, min_x, max_y, min_y)
+print('bound')
+
+rm(primary, secondary, motorway, trunk, tertiary, max_x, min_x, max_y, min_y)
 
 roads             <- roads[!grepl(';', roads$lanes),]
 
 roads[roads$type == 'primary'     & is.na(roads$lanes),'lanes'] <- 2
 roads[roads$type == 'secondary'   & is.na(roads$lanes),'lanes'] <- 2
 roads[roads$type == 'motorway'    & is.na(roads$lanes),'lanes'] <- 6
-roads[roads$type == 'residential' & is.na(roads$lanes),'lanes'] <- 2
 roads[roads$type == 'trunk'       & is.na(roads$lanes),'lanes'] <- 4
 roads[roads$type == 'tertiary'    & is.na(roads$lanes),'lanes'] <- 2
 
@@ -94,11 +105,17 @@ roads$weighted_mean <- NA
 roads$cell_count    <- NA
 roads$zero_cells    <- NA
 
-print('extracting data')
+print('about extracting data')
 
-roads$weighted_mean <- extract(london_raster, road_polygons, weights=T, na.rm=F, fun=mean)
-roads$cell_count    <- unlist(lapply(extract(london_raster, road_polygons, weights=T, na.rm=F), FUN = function(x)(length(x[,1]))))
-roads$zero_cells    <- unlist(lapply(extract(london_raster, road_polygons, weights=T, na.rm=F), FUN = function(x)(sum(x[,1]==0))))
+extracted <- extract(london_raster, road_polygons, weights=T, na.rm=F)
+
+print('extracted data, using sapply to put into the roads file')
+
+roads$weighted_mean <- sapply(extracted, FUN = function(x)(sum(x[,1] * x[,2])))
+roads$cell_count    <- sapply(extracted, FUN = function(x)(length(x[,1])))
+roads$zero_cells    <- sapply(extracted, FUN = function(x)(sum(x[,1]==0)))
+
+print('done')
 
 roads$geometry      <- st_transform(roads$geometry, 4326)
 

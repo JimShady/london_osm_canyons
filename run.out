@@ -6,7 +6,7 @@ Skipping install of 'osmdata' from a github remote, the SHA1 (0545bcc9) has not 
   Use `force = TRUE` to force installation
 Data (c) OpenStreetMap contributors, ODbL 1.0. http://www.openstreetmap.org/copyright
 Loading required package: sp
-Skipping install of 'ggplot2' from a github remote, the SHA1 (69dfc4bc) has not changed since last install.
+Skipping install of 'ggplot2' from a github remote, the SHA1 (1f9ef732) has not changed since last install.
   Use `force = TRUE` to force installation
 rgeos version: 0.3-26, (SVN revision 560)
  GEOS runtime version: 3.5.0-CAPI-1.9.0 r4084 
@@ -32,5 +32,11 @@ The following object is masked from ‘package:raster’:
 Loading required package: bitops
 [1] "loading raster"
 [1] "loading roads"
+[1] "loaded primary"
+[1] "loaded secondary"
+[1] "loaded motorway"
+[1] "loaded trunk"
+[1] "loaded tertiary"
 [1] "binding roads"
-[1] "extracting data"
+[1] "bound"
+[1] "about extracting data"
