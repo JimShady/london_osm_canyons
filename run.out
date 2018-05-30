@@ -40,3 +40,6 @@ Loading required package: bitops
 [1] "binding roads"
 [1] "bound"
 [1] "about extracting data"
+[1] "extracted data, using sapply to put into the roads file"
+[1] "done"
+[1] "saving data"
