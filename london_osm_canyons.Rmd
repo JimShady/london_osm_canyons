@@ -11,6 +11,8 @@ knit: (function(inputFile, encoding) {
 ---
 
 ```{r load libraries, include=F}
+rm(list=ls(all=TRUE)) 
+
 library(devtools)
 devtools::install_github("r-spatial/sf")
 library(sf)
@@ -26,6 +28,8 @@ library(rgeos)
 library(data.table)
 library(knitr)
 library(mapview)
+library(RCurl)
+library(stplanr)
 ```
 
 
@@ -34,6 +38,7 @@ Downloaded from [Copernicus Urban Atlas](https://land.copernicus.eu/local/urban-
 
 ```{r get building rasters}
 
+print('loading raster')
 london_raster <- raster('buildings_raster/UK001L2_LONDON_UA2012_DHM/UK001L2_LONDON_UA2012_DHM.tif')
 plot(london_raster)
 title('Raster file of London Building heights')
@@ -68,51 +73,65 @@ available_tags('highway')
 ```
 
 ```{r}
+print('loading roads')
+
 primary           <- opq(bbox = c(min_x, min_y, max_x, max_y)) %>% add_osm_feature(key = 'highway', value='primary') %>% osmdata_sf()
 primary           <- primary$osm_lines[,c('osm_id', 'lanes', 'geometry')]
 primary$type      <- 'primary'
 
-#secondary         <- opq(bbox = c(min_x, min_y, max_x, max_y)) %>% add_osm_feature(key = 'highway', value='secondary') %>% osmdata_sf()
-#secondary         <- secondary$osm_lines[,c('osm_id', 'lanes', 'geometry')]
-#secondary$type    <- 'secondary'
+print('loaded primary')
 
-#motorway          <- opq(bbox = c(min_x, min_y, max_x, max_y)) %>% add_osm_feature(key = 'highway', value='motorway') %>% osmdata_sf()
-#motorway          <- motorway$osm_lines[,c('osm_id', 'lanes', 'geometry')]
-#motorway$type     <- 'motorway'
+secondary         <- opq(bbox = c(min_x, min_y, max_x, max_y)) %>% add_osm_feature(key = 'highway', value='secondary') %>% osmdata_sf()
+secondary         <- secondary$osm_lines[,c('osm_id', 'lanes', 'geometry')]
+secondary$type    <- 'secondary'
 
-#residential       <- opq(bbox = c(min_x, min_y, max_x, max_y)) %>% add_osm_feature(key = 'highway', value='residential') %>% osmdata_sp()
-#residential       <- residential$osm_lines[,c('lanes')]
-#residential$type  <- 'residential'
-#trunk             <- opq(bbox = c(min_x, min_y, max_x, max_y)) %>% add_osm_feature(key = 'highway', value='trunk') %>% osmdata_sf()
-#trunk             <- trunk$osm_lines[,c('osm_id', 'lanes', 'geometry')]
-#trunk$type        <- 'trunk'
+print('loaded secondary')
 
-#tertiary          <- opq(bbox = c(min_x, min_y, max_x, max_y)) %>% add_osm_feature(key = 'highway', value='tertiary') %>% osmdata_sp()
-#tertiary          <- tertiary$osm_lines[,c('lanes')]
-#tertiary$type     <- 'tertiary'
+motorway          <- opq(bbox = c(min_x, min_y, max_x, max_y)) %>% add_osm_feature(key = 'highway', value='motorway') %>% osmdata_sf()
+motorway          <- motorway$osm_lines[,c('osm_id', 'lanes', 'geometry')]
+motorway$type     <- 'motorway'
 
-#roads             <- rbind(primary, secondary, motorway, trunk) # Could add residential and tertiary here
-roads             <- rbind(primary) # Could add residential and tertiary here
+print('loaded motorway')
+
+trunk             <- opq(bbox = c(min_x, min_y, max_x, max_y)) %>% add_osm_feature(key = 'highway', value='trunk') %>% osmdata_sf()
+trunk             <- trunk$osm_lines[,c('osm_id', 'lanes', 'geometry')]
+trunk$type        <- 'trunk'
+
+print('loaded trunk')
+
+tertiary          <- opq(bbox = c(min_x, min_y, max_x, max_y)) %>% add_osm_feature(key = 'highway', value='tertiary') %>% osmdata_sf()
+tertiary          <- tertiary$osm_lines[,c('osm_id', 'lanes', 'geometry')]
+tertiary$type     <- 'tertiary'
+
+print('loaded tertiary')
+
+print('binding roads')
+
+roads             <- rbind(primary, secondary, motorway, trunk, tertiary) 
 roads$osm_id      <- as.numeric(as.character(roads$osm_id))
 
-rm(primary, max_x, min_x, min_y, max_y)
+print('bound roads')
+
+rm(primary, secondary, motorway, trunk, tertiary, max_x, min_x, max_y, min_y)
+
 ```
 
 Now that we have a SpatialLinesDataFrame of all the London roads, we delete the ones where the 'lane' attribute is not formed properly or contains an error.
 
-```{r}
+```{r clean lanes data}
+roads$lanes       <- as.character(roads$lanes)
 roads             <- roads[!grepl(';', roads$lanes),]
+roads$lanes       <- as.numeric(roads$lanes)
+```
+
+The number of lanes for each road type
+
+```{r check lanes data}
+table(roads$type, roads$lanes)
 
 ```
 
-This leaves the following
-
-```{r}
-data.frame( type = data.frame(table(roads$type))$Var1, count = data.frame(table(roads$type))$Freq)
-
-```
-
-Presuming that a lane is 3.15 metres wide, each road width is now calculated and added to the dataset. Where roads do not have numebrs of lanes given, the following are presumed:
+Presuming that a lane is 3.15 metres wide, each road width is now calculated and added to the dataset. Where roads do not have numbers of lanes given, the following are presumed:
 
 | Road type   | Lanes |
 |-------------|-------|
@@ -123,18 +142,57 @@ Presuming that a lane is 3.15 metres wide, each road width is now calculated and
 | Trunk       |   4   |
 | Tertiary    |   2   |
 
-
 ```{r make road widths}
 
 roads[roads$type == 'primary'     & is.na(roads$lanes),'lanes'] <- 2
 roads[roads$type == 'secondary'   & is.na(roads$lanes),'lanes'] <- 2
 roads[roads$type == 'motorway'    & is.na(roads$lanes),'lanes'] <- 6
-roads[roads$type == 'residential' & is.na(roads$lanes),'lanes'] <- 2
 roads[roads$type == 'trunk'       & is.na(roads$lanes),'lanes'] <- 4
 roads[roads$type == 'tertiary'    & is.na(roads$lanes),'lanes'] <- 2
 
-roads$width      <- as.numeric(roads$lanes) * 3.15
+roads$width             <- as.numeric(roads$lanes) * 3.15
+```
 
+The road widths by road type are now as below
+
+```{r road widths summary}
+
+aggregate(width ~ type, data=roads, FUN=summary)
+
+ggplot(roads, aes(y = width, x = type, group=type, fill=type)) + geom_boxplot() + ggtitle('Road widths by road type')
+```
+
+The widest road in the dataset is here
+```{r checking roads}
+m <- mapview(st_buffer(roads[roads$width>25,][1,],100), map.types = 'Esri.WorldImagery', alpha.regions=0.1)
+mapshot(m, file = paste0(getwd(), "/map.png"), remove_controls = c("zoomControl", "layersControl", "homeButton","scaleBar"))
+```
+
+![](map.png)
+
+Pavement width is also added to the roads, depending on what type of road it is, as follows
+
+```{r make road widths}
+
+roads$pavement_width   <- NA
+
+roads[roads$type == 'primary',  'pavement_width'] <- 4
+roads[roads$type == 'secondary','pavement_width'] <- 4
+roads[roads$type == 'motorway', 'pavement_width'] <- 0
+roads[roads$type == 'trunk',    'pavement_width'] <- 4
+roads[roads$type == 'tertiary', 'pavement_width'] <- 4
+
+roads$total_width <- roads$width + roads$pavement_width
+
+```
+
+With pavements added the roads width is..
+
+```{r road widths summary}
+
+aggregate(total_width ~ type, data=roads, FUN=summary)
+
+ggplot(roads, aes(y = total_width, x = type, group=type, fill=type)) + geom_boxplot() + ggtitle('Road widths by road type')
 ```
 
 The map below shows roads currently in the dataset, coloured by type
@@ -149,10 +207,18 @@ ggplot(roads, aes(colour = type, fill=type)) +
         legend.position = 'bottom')
 ```
 
-```{r remove problem roads and make buffers}
+Remove a few circular roads that are a problem for buffers
+
+```{r remove problem roads}
 roads_to_ignore         <- c(9393,11079,14595,15578)
 roads                   <- roads[-roads_to_ignore,]
+rm(roads_to_ignore)
 
+```
+
+Make the buffers around the roads
+
+```{r make road buffers}
 roads                   <- st_transform(roads, 27700)
 
 roads$area              <- st_geometry(st_buffer(roads, dist = 15)) / st_geometry(st_buffer(roads, dist = 10))
@@ -163,11 +229,9 @@ roads$area              <- st_transform(roads$area, 4326)
 roads$geometry          <- st_transform(roads$geometry, crs(london_raster)@projargs)
 roads$area              <- st_transform(roads$area, crs(london_raster)@projargs)
 
-rm(roads_to_ignore)
-
 ```
 
-Then with the raster and the roads together (after transforming the roads to the same CRS as the raster)
+Check everything looks ok
 
 ```{r sanity_check}
 plot(london_raster, xlim=c(3621000, 3622000), ylim = c(3204000,3205000))
@@ -176,9 +240,7 @@ plot(st_geometry(roads$area), xlim=c(3621000, 3622000), add=T)
 
 ```
 
-Now we are going to draw two buffers around the roads, one of 10 metres and one of 15 metres. We then take the difference of these two. This resulting 'ring' (shown in red below) will be used as the area to extract building heights from the 'london_raster' layer. The ID values shown as 'roads_to_remove' as roads that are circular, and not suitable for this process. We also need to turn it into a projected CRS before buffering
-
-Now that we have polygon-rings for each road, we can extract the mean building height covered by this ring. Here's an illustration of a road.
+Interactive map view of one feature
 
 ```{r map view of a buffer}
 temp_raster <- extent(st_bbox(roads[10,])$xmin-40, st_bbox(roads[10,])$xmax+40, 
@@ -190,22 +252,83 @@ mapview(temp_raster, alpha.regions = 0.4, map.types = 'OpenStreetMap.BlackAndWhi
 rm(temp_raster)
 ```
 
-These go into new columns in the 'roads' data.
+Now extract the data we need from the raster (this takes circa 12 hours)
 
 ```{r extracting_heights}
-road_polygons       <- as(roads$area,'Spatial')[1:50,]
+road_polygons       <- as(roads$area,'Spatial')
 roads$area          <- NULL 
 
 roads$weighted_mean <- NA
 roads$cell_count    <- NA
 roads$zero_cells    <- NA
 
-roads$weighted_mean <- extract(london_raster, road_polygons, weights=T, na.rm=F, fun=mean)
-roads$cell_count    <- unlist(lapply(extract(london_raster, road_polygons, weights=T, na.rm=F), FUN = function(x)(length(x[,1]))))
-roads$zero_cells    <- unlist(lapply(extract(london_raster, road_polygons, weights=T, na.rm=F), FUN = function(x)(sum(x[,1]==0))))
+print('about extracting data')
+
+extracted <- extract(london_raster, road_polygons, weights=T, na.rm=F)
+
+print('extracted data, using sapply to put into the roads file')
+
+roads$weighted_mean <- sapply(extracted, FUN = function(x)(sum(x[,1] * x[,2])))
+roads$cell_count    <- sapply(extracted, FUN = function(x)(length(x[,1])))
+roads$zero_cells    <- sapply(extracted, FUN = function(x)(sum(x[,1]==0)))
+
+print('done')
 
 roads$geometry      <- st_transform(roads$geometry, 4326)
 
-saveRDS(roads, file = "roads_output.rds")
+rm(london_raster)
+
+```
+
+Now need to get the bearing of each road from start point to end point
+
+```{r calculate bearing}
+ukgrid = "+init=epsg:27700"
+
+start_points              <- as(line_to_points(roads), 'Spatial')
+proj4string(start_points) <- latlong
+start_points              <- spTransform(start_points, ukgrid)
+start_points              <- data.frame(start_points)
+start_points              <- aggregate(.~id, start_points, FUN=head, 1)
+start_points$optional     <- NULL
+names(start_points)       <- c('id', 'start_x', 'start_y')
+coordinates(start_points) <- ~start_x+start_y
+proj4string(start_points) <- ukgrid
+start_points              <- spTransform(start_points, latlong)
+
+end_points                <- as(line_to_points(roads), 'Spatial')
+proj4string(end_points)   <- latlong
+end_points                <- spTransform(end_points, ukgrid)
+end_points                <- data.frame(end_points)
+end_points                <- aggregate(.~id, end_points, FUN=tail, 1)
+end_points$optional       <- NULL
+names(end_points)         <- c('id', 'end_x', 'end_y')
+coordinates(end_points)   <- ~end_x+end_y
+proj4string(end_points)   <- ukgrid
+end_points                <- spTransform(end_points, latlong)
+
+roads$bearing             <- bearing(start_points, end_points)
+
+hist(roads$bearing)
+
+```
+
+Add another column for height to width ratio
+
+```{r height and width ratio}
+roads$height_width_ratio <- roads$weighted_mean / roads$total_width
+
+ggplot(roads, aes(y = height_width_ratio, group=type, x=type, fill=type)) + geom_boxplot() + ggtitle('Height to width ratio by street type')
+
+```
+
+Clean-up some old variables
+
+```{r cleanup}
+rm(end_points, start_points, latlong, ukgrid)
+
+print('saving data')
+
+saveRDS(roads, file = "london_roads_output.rds")
 
 ```
