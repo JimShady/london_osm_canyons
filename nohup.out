@@ -1,287 +1,0 @@
-
-R version 3.4.4 (2018-03-15) -- "Someone to Lean On"
-Copyright (C) 2018 The R Foundation for Statistical Computing
-Platform: x86_64-pc-linux-gnu (64-bit)
-
-R is free software and comes with ABSOLUTELY NO WARRANTY.
-You are welcome to redistribute it under certain conditions.
-Type 'license()' or 'licence()' for distribution details.
-
-  Natural language support but running in an English locale
-
-R is a collaborative project with many contributors.
-Type 'contributors()' for more information and
-'citation()' on how to cite R or R packages in publications.
-
-Type 'demo()' for some demos, 'help()' for on-line help, or
-'help.start()' for an HTML browser interface to help.
-Type 'q()' to quit R.
-
-> rmarkdown::render('london_osm_canyons.Rmd')
-
-
-processing file: london_osm_canyons.Rmd
-Error in parse_block(g[-1], g[1], params.src) : 
-  duplicate label 'make road widths'
-Calls: <Anonymous> ... process_file -> split_file -> lapply -> FUN -> parse_block
-Execution halted
-
-R version 3.4.4 (2018-03-15) -- "Someone to Lean On"
-Copyright (C) 2018 The R Foundation for Statistical Computing
-Platform: x86_64-pc-linux-gnu (64-bit)
-
-R is free software and comes with ABSOLUTELY NO WARRANTY.
-You are welcome to redistribute it under certain conditions.
-Type 'license()' or 'licence()' for distribution details.
-
-  Natural language support but running in an English locale
-
-R is a collaborative project with many contributors.
-Type 'contributors()' for more information and
-'citation()' on how to cite R or R packages in publications.
-
-Type 'demo()' for some demos, 'help()' for on-line help, or
-'help.start()' for an HTML browser interface to help.
-Type 'q()' to quit R.
-
-> rmarkdown::render('london_osm_canyons.Rmd')
-
-
-processing file: london_osm_canyons.Rmd
-  |                                                                         |                                                                 |   0%  |                                                                         |..                                                               |   2%
-   inline R code fragments
-
-  |                                                                         |...                                                              |   5%
-label: load libraries (with options) 
-List of 1
- $ include: symbol F
-
-* installing *source* package ‘sf’ ...
-configure: CC: gcc -std=gnu99
-configure: CXX: g++
-checking for gdal-config... /usr/bin/gdal-config
-checking gdal-config usability... yes
-configure: GDAL: 2.2.2
-checking GDAL version >= 2.0.0... yes
-checking for gcc... gcc -std=gnu99
-checking whether the C compiler works... yes
-checking for C compiler default output file name... a.out
-checking for suffix of executables... 
-checking whether we are cross compiling... no
-checking for suffix of object files... o
-checking whether we are using the GNU C compiler... yes
-checking whether gcc -std=gnu99 accepts -g... yes
-checking for gcc -std=gnu99 option to accept ISO C89... none needed
-checking how to run the C preprocessor... gcc -std=gnu99 -E
-checking for grep that handles long lines and -e... /bin/grep
-checking for egrep... /bin/grep -E
-checking for ANSI C header files... yes
-checking for sys/types.h... yes
-checking for sys/stat.h... yes
-checking for stdlib.h... yes
-checking for string.h... yes
-checking for memory.h... yes
-checking for strings.h... yes
-checking for inttypes.h... yes
-checking for stdint.h... yes
-checking for unistd.h... yes
-checking gdal.h usability... yes
-checking gdal.h presence... yes
-checking for gdal.h... yes
-checking GDAL: linking with --libs only... yes
-checking GDAL: /usr/share/gdal/2.2/pcs.csv readable... yes
-checking GDAL: checking whether PROJ.4 is available for linking:... yes
-checking GDAL: checking whether PROJ.4 is available fur running:... yes
-configure: pkg-config proj exists, will use it
-checking proj_api.h usability... yes
-checking proj_api.h presence... yes
-checking for proj_api.h... yes
-configure: PROJ: 4.9.2
-checking for pj_init_plus in -lproj... yes
-checking PROJ.4: epsg found and readable... yes
-checking PROJ.4: conus found and readable... yes
-checking for geos-config... /usr/bin/geos-config
-checking geos-config usability... yes
-configure: GEOS: 3.5.0
-checking GEOS version >= 3.4.0... yes
-checking geos_c.h usability... yes
-checking geos_c.h presence... yes
-checking for geos_c.h... yes
-checking geos: linking with -L/usr/lib/x86_64-linux-gnu -lgeos_c... yes
-configure: Package CPP flags:   -I/usr/include/gdal -I/usr/include
-configure: Package LIBS: -lproj   -L/usr/lib -lgdal -L/usr/lib/x86_64-linux-gnu -lgeos_c
-configure: creating ./config.status
-config.status: creating src/Makevars
-** libs
-g++ -std=gnu++11 -I/usr/share/R/include -DNDEBUG -I/usr/include/gdal -I/usr/include -I"/home/james/R/x86_64-pc-linux-gnu-library/3.4/Rcpp/include"    -fpic  -g -O2 -fstack-protector-strong -Wformat -Werror=format-security -Wdate-time -D_FORTIFY_SOURCE=2 -g -c RcppExports.cpp -o RcppExports.o
-g++ -std=gnu++11 -I/usr/share/R/include -DNDEBUG -I/usr/include/gdal -I/usr/include -I"/home/james/R/x86_64-pc-linux-gnu-library/3.4/Rcpp/include"    -fpic  -g -O2 -fstack-protector-strong -Wformat -Werror=format-security -Wdate-time -D_FORTIFY_SOURCE=2 -g -c bbox.cpp -o bbox.o
-g++ -std=gnu++11 -I/usr/share/R/include -DNDEBUG -I/usr/include/gdal -I/usr/include -I"/home/james/R/x86_64-pc-linux-gnu-library/3.4/Rcpp/include"    -fpic  -g -O2 -fstack-protector-strong -Wformat -Werror=format-security -Wdate-time -D_FORTIFY_SOURCE=2 -g -c gdal.cpp -o gdal.o
-g++ -std=gnu++11 -I/usr/share/R/include -DNDEBUG -I/usr/include/gdal -I/usr/include -I"/home/james/R/x86_64-pc-linux-gnu-library/3.4/Rcpp/include"    -fpic  -g -O2 -fstack-protector-strong -Wformat -Werror=format-security -Wdate-time -D_FORTIFY_SOURCE=2 -g -c gdal_geom.cpp -o gdal_geom.o
-g++ -std=gnu++11 -I/usr/share/R/include -DNDEBUG -I/usr/include/gdal -I/usr/include -I"/home/james/R/x86_64-pc-linux-gnu-library/3.4/Rcpp/include"    -fpic  -g -O2 -fstack-protector-strong -Wformat -Werror=format-security -Wdate-time -D_FORTIFY_SOURCE=2 -g -c gdal_read.cpp -o gdal_read.o
-g++ -std=gnu++11 -I/usr/share/R/include -DNDEBUG -I/usr/include/gdal -I/usr/include -I"/home/james/R/x86_64-pc-linux-gnu-library/3.4/Rcpp/include"    -fpic  -g -O2 -fstack-protector-strong -Wformat -Werror=format-security -Wdate-time -D_FORTIFY_SOURCE=2 -g -c gdal_utils.cpp -o gdal_utils.o
-g++ -std=gnu++11 -I/usr/share/R/include -DNDEBUG -I/usr/include/gdal -I/usr/include -I"/home/james/R/x86_64-pc-linux-gnu-library/3.4/Rcpp/include"    -fpic  -g -O2 -fstack-protector-strong -Wformat -Werror=format-security -Wdate-time -D_FORTIFY_SOURCE=2 -g -c gdal_write.cpp -o gdal_write.o
-g++ -std=gnu++11 -I/usr/share/R/include -DNDEBUG -I/usr/include/gdal -I/usr/include -I"/home/james/R/x86_64-pc-linux-gnu-library/3.4/Rcpp/include"    -fpic  -g -O2 -fstack-protector-strong -Wformat -Werror=format-security -Wdate-time -D_FORTIFY_SOURCE=2 -g -c geos.cpp -o geos.o
-g++ -std=gnu++11 -I/usr/share/R/include -DNDEBUG -I/usr/include/gdal -I/usr/include -I"/home/james/R/x86_64-pc-linux-gnu-library/3.4/Rcpp/include"    -fpic  -g -O2 -fstack-protector-strong -Wformat -Werror=format-security -Wdate-time -D_FORTIFY_SOURCE=2 -g -c hex.cpp -o hex.o
-g++ -std=gnu++11 -I/usr/share/R/include -DNDEBUG -I/usr/include/gdal -I/usr/include -I"/home/james/R/x86_64-pc-linux-gnu-library/3.4/Rcpp/include"    -fpic  -g -O2 -fstack-protector-strong -Wformat -Werror=format-security -Wdate-time -D_FORTIFY_SOURCE=2 -g -c proj.cpp -o proj.o
-g++ -std=gnu++11 -I/usr/share/R/include -DNDEBUG -I/usr/include/gdal -I/usr/include -I"/home/james/R/x86_64-pc-linux-gnu-library/3.4/Rcpp/include"    -fpic  -g -O2 -fstack-protector-strong -Wformat -Werror=format-security -Wdate-time -D_FORTIFY_SOURCE=2 -g -c raster2sf.cpp -o raster2sf.o
-g++ -std=gnu++11 -I/usr/share/R/include -DNDEBUG -I/usr/include/gdal -I/usr/include -I"/home/james/R/x86_64-pc-linux-gnu-library/3.4/Rcpp/include"    -fpic  -g -O2 -fstack-protector-strong -Wformat -Werror=format-security -Wdate-time -D_FORTIFY_SOURCE=2 -g -c sfg.cpp -o sfg.o
-g++ -std=gnu++11 -I/usr/share/R/include -DNDEBUG -I/usr/include/gdal -I/usr/include -I"/home/james/R/x86_64-pc-linux-gnu-library/3.4/Rcpp/include"    -fpic  -g -O2 -fstack-protector-strong -Wformat -Werror=format-security -Wdate-time -D_FORTIFY_SOURCE=2 -g -c signed_area.cpp -o signed_area.o
-g++ -std=gnu++11 -I/usr/share/R/include -DNDEBUG -I/usr/include/gdal -I/usr/include -I"/home/james/R/x86_64-pc-linux-gnu-library/3.4/Rcpp/include"    -fpic  -g -O2 -fstack-protector-strong -Wformat -Werror=format-security -Wdate-time -D_FORTIFY_SOURCE=2 -g -c stars.cpp -o stars.o
-g++ -std=gnu++11 -I/usr/share/R/include -DNDEBUG -I/usr/include/gdal -I/usr/include -I"/home/james/R/x86_64-pc-linux-gnu-library/3.4/Rcpp/include"    -fpic  -g -O2 -fstack-protector-strong -Wformat -Werror=format-security -Wdate-time -D_FORTIFY_SOURCE=2 -g -c wkb.cpp -o wkb.o
-g++ -std=gnu++11 -shared -L/usr/lib/R/lib -Wl,-Bsymbolic-functions -Wl,-z,relro -o sf.so RcppExports.o bbox.o gdal.o gdal_geom.o gdal_read.o gdal_utils.o gdal_write.o geos.o hex.o proj.o raster2sf.o sfg.o signed_area.o stars.o wkb.o -lproj -L/usr/lib -lgdal -L/usr/lib/x86_64-linux-gnu -lgeos_c -L/usr/lib/R/lib -lR
-installing to /home/james/R/x86_64-pc-linux-gnu-library/3.4/sf/libs
-** R
-** data
-** demo
-** inst
-** tests
-** preparing package for lazy loading
-in method for ‘dbWriteTable’ with signature ‘"PostgreSQLConnection","character","sf"’: no definition for class “PostgreSQLConnection”
-in method for ‘dbDataType’ with signature ‘"PostgreSQLConnection","sf"’: no definition for class “PostgreSQLConnection”
-in method for ‘coerce’ with signature ‘"Spatial","sf"’: no definition for class “Spatial”
-in method for ‘coerce’ with signature ‘"Spatial","sfc"’: no definition for class “Spatial”
-in method for ‘coerce’ with signature ‘"sf","Spatial"’: no definition for class “Spatial”
-in method for ‘coerce’ with signature ‘"sfc","Spatial"’: no definition for class “Spatial”
-in method for ‘coerce’ with signature ‘"XY","Spatial"’: no definition for class “Spatial”
-** help
-*** installing help indices
-** building package indices
-** installing vignettes
-** testing if installed package can be loaded
-* DONE (sf)
-trying URL 'https://cloud.r-project.org/src/contrib/rlang_0.2.1.tar.gz'
-Content type 'application/x-gzip' length 325006 bytes (317 KB)
-==================================================
-downloaded 317 KB
-
-* installing *source* package ‘rlang’ ...
-** package ‘rlang’ successfully unpacked and MD5 sums checked
-** libs
-gcc -std=gnu99 -I/usr/share/R/include -DNDEBUG -I./lib/     -fpic  -g -O2 -fstack-protector-strong -Wformat -Werror=format-security -Wdate-time -D_FORTIFY_SOURCE=2 -g  -c capture.c -o capture.o
-gcc -std=gnu99 -I/usr/share/R/include -DNDEBUG -I./lib/     -fpic  -g -O2 -fstack-protector-strong -Wformat -Werror=format-security -Wdate-time -D_FORTIFY_SOURCE=2 -g  -c export.c -o export.o
-gcc -std=gnu99 -I/usr/share/R/include -DNDEBUG -I./lib/     -fpic  -g -O2 -fstack-protector-strong -Wformat -Werror=format-security -Wdate-time -D_FORTIFY_SOURCE=2 -g  -c internal.c -o internal.o
-gcc -std=gnu99 -I/usr/share/R/include -DNDEBUG -I./lib/     -fpic  -g -O2 -fstack-protector-strong -Wformat -Werror=format-security -Wdate-time -D_FORTIFY_SOURCE=2 -g  -c lib.c -o lib.o
-g++ -shared -L/usr/lib/R/lib -Wl,-Bsymbolic-functions -Wl,-z,relro -o rlang.so capture.o export.o internal.o lib.o -L/usr/lib/R/lib -lR
-installing to /home/james/R/x86_64-pc-linux-gnu-library/3.4/rlang/libs
-** R
-** tests
-** byte-compile and prepare package for lazy loading
-** help
-*** installing help indices
-*** copying figures
-** building package indices
-** testing if installed package can be loaded
-* DONE (rlang)
-* installing *source* package ‘ggplot2’ ...
-** R
-** data
-*** moving datasets to lazyload DB
-** inst
-** tests
-** preparing package for lazy loading
-** help
-*** installing help indices
-*** copying figures
-** building package indices
-** installing vignettes
-** testing if installed package can be loaded
-* DONE (ggplot2)
-  |                                                                         |.....                                                            |   7%
-  ordinary text without R code
-
-  |                                                                         |......                                                           |  10%
-label: get building rasters
-  |                                                                         |........                                                         |  12%
-  ordinary text without R code
-
-  |                                                                         |.........                                                        |  14%
-label: get extent of the raster
-  |                                                                         |...........                                                      |  17%
-  ordinary text without R code
-
-  |                                                                         |............                                                     |  19%
-label: download data from osm (with options) 
-List of 1
- $ warning: symbol F
-
-  |                                                                         |..............                                                   |  21%
-  ordinary text without R code
-
-  |                                                                         |...............                                                  |  24%
-label: import road data
-  |                                                                         |.................                                                |  26%
-  ordinary text without R code
-
-  |                                                                         |...................                                              |  29%
-label: clean lanes data
-  |                                                                         |....................                                             |  31%
-  ordinary text without R code
-
-  |                                                                         |......................                                           |  33%
-label: check lanes data
-  |                                                                         |.......................                                          |  36%
-  ordinary text without R code
-
-  |                                                                         |.........................                                        |  38%
-label: road_widths
-  |                                                                         |..........................                                       |  40%
-  ordinary text without R code
-
-  |                                                                         |............................                                     |  43%
-label: road_widths_summary
-  |                                                                         |.............................                                    |  45%
-  ordinary text without R code
-
-  |                                                                         |...............................                                  |  48%
-label: checking roads
-  |                                                                         |................................                                 |  50%
-  ordinary text without R code
-
-  |                                                                         |..................................                               |  52%
-label: add pavement widths
-  |                                                                         |....................................                             |  55%
-  ordinary text without R code
-
-  |                                                                         |.....................................                            |  57%
-label: road widths summary with pavements
-  |                                                                         |.......................................                          |  60%
-  ordinary text without R code
-
-  |                                                                         |........................................                         |  62%
-label: show downloaded roads
-  |                                                                         |..........................................                       |  64%
-  ordinary text without R code
-
-  |                                                                         |...........................................                      |  67%
-label: remove problem roads
-  |                                                                         |.............................................                    |  69%
-  ordinary text without R code
-
-  |                                                                         |..............................................                   |  71%
-label: make road buffers
-  |                                                                         |................................................                 |  74%
-  ordinary text without R code
-
-  |                                                                         |..................................................               |  76%
-label: sanity_check
-  |                                                                         |...................................................              |  79%
-  ordinary text without R code
-
-  |                                                                         |.....................................................            |  81%
-label: map view of a buffer
-  |                                                                         |......................................................           |  83%
-  ordinary text without R code
-
-  |                                                                         |........................................................         |  86%
-label: extracting_heights
-  |                                                                         |.........................................................        |  88%
-  ordinary text without R code
-
-  |                                                                         |...........................................................      |  90%
-label: calculate bearing
-Quitting from lines 286-314 (london_osm_canyons.Rmd) 
-Error in bearing(start_points, end_points) : 
-  could not find function "bearing"
-Calls: <Anonymous> ... handle -> withCallingHandlers -> withVisible -> eval -> eval
-
-Execution halted

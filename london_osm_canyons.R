@@ -16,9 +16,7 @@ library(data.table)
 library(knitr)
 library(mapview)
 library(RCurl)
-
-print('loading raster')
-london_raster <- raster('buildings_raster/UK001L2_LONDON_UA2012_DHM/UK001L2_LONDON_UA2012_DHM.tif')
+library(stplanr)
 
 extent              <- extent(london_raster)
 extent              <- as(extent, 'SpatialPolygons')
@@ -32,7 +30,6 @@ min_y   <- extent(extent)[3]
 max_y   <- extent(extent)[4]
 rm(extent)
 
-print('loading roads')
 
 primary           <- opq(bbox = c(min_x, min_y, max_x, max_y)) %>% add_osm_feature(key = 'highway', value='primary') %>% osmdata_sf()
 primary           <- primary$osm_lines[,c('osm_id', 'lanes', 'geometry')]
@@ -69,11 +66,14 @@ print('binding roads')
 roads             <- rbind(primary, secondary, motorway, trunk, tertiary) 
 roads$osm_id      <- as.numeric(as.character(roads$osm_id))
 
-print('bound')
+print('bound roads')
 
 rm(primary, secondary, motorway, trunk, tertiary, max_x, min_x, max_y, min_y)
 
+
+roads$lanes       <- as.character(roads$lanes)
 roads             <- roads[!grepl(';', roads$lanes),]
+roads$lanes       <- as.numeric(roads$lanes)
 
 roads[roads$type == 'primary'     & is.na(roads$lanes),'lanes'] <- 2
 roads[roads$type == 'secondary'   & is.na(roads$lanes),'lanes'] <- 2
@@ -83,8 +83,19 @@ roads[roads$type == 'tertiary'    & is.na(roads$lanes),'lanes'] <- 2
 
 roads$width             <- as.numeric(roads$lanes) * 3.15
 
+roads$pavement_width   <- NA
+
+roads[roads$type == 'primary',  'pavement_width'] <- 4
+roads[roads$type == 'secondary','pavement_width'] <- 4
+roads[roads$type == 'motorway', 'pavement_width'] <- 0
+roads[roads$type == 'trunk',    'pavement_width'] <- 4
+roads[roads$type == 'tertiary', 'pavement_width'] <- 4
+
+roads$total_width <- roads$width + roads$pavement_width
+
 roads_to_ignore         <- c(9393,11079,14595,15578)
 roads                   <- roads[-roads_to_ignore,]
+rm(roads_to_ignore)
 
 roads                   <- st_transform(roads, 27700)
 
@@ -95,8 +106,6 @@ roads$area              <- st_transform(roads$area, 4326)
 
 roads$geometry          <- st_transform(roads$geometry, crs(london_raster)@projargs)
 roads$area              <- st_transform(roads$area, crs(london_raster)@projargs)
-
-rm(roads_to_ignore)
 
 road_polygons       <- as(roads$area,'Spatial')
 roads$area          <- NULL 
@@ -119,5 +128,38 @@ print('done')
 
 roads$geometry      <- st_transform(roads$geometry, 4326)
 
+rm(london_raster)
+
+ukgrid = "+init=epsg:27700"
+
+start_points              <- as(line_to_points(roads), 'Spatial')
+proj4string(start_points) <- latlong
+start_points              <- spTransform(start_points, ukgrid)
+start_points              <- data.frame(start_points)
+start_points              <- aggregate(.~id, start_points, FUN=head, 1)
+start_points$optional     <- NULL
+names(start_points)       <- c('id', 'start_x', 'start_y')
+coordinates(start_points) <- ~start_x+start_y
+proj4string(start_points) <- ukgrid
+start_points              <- spTransform(start_points, latlong)
+
+end_points                <- as(line_to_points(roads), 'Spatial')
+proj4string(end_points)   <- latlong
+end_points                <- spTransform(end_points, ukgrid)
+end_points                <- data.frame(end_points)
+end_points                <- aggregate(.~id, end_points, FUN=tail, 1)
+end_points$optional       <- NULL
+names(end_points)         <- c('id', 'end_x', 'end_y')
+coordinates(end_points)   <- ~end_x+end_y
+proj4string(end_points)   <- ukgrid
+end_points                <- spTransform(end_points, latlong)
+
+roads$bearing             <- bearing(start_points, end_points)
+
+roads$height_width_ratio <- roads$weighted_mean / roads$total_width
+
+rm(end_points, start_points, latlong, ukgrid)
+
 print('saving data')
+
 saveRDS(roads, file = "london_roads_output.rds")
