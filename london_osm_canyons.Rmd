@@ -72,7 +72,7 @@ Using the [osmdata package](https://cran.r-project.org/web/packages/osmdata/osmd
 available_tags('highway')
 ```
 
-```{r}
+```{r import road data}
 print('loading roads')
 
 primary           <- opq(bbox = c(min_x, min_y, max_x, max_y)) %>% add_osm_feature(key = 'highway', value='primary') %>% osmdata_sf()
@@ -142,7 +142,7 @@ Presuming that a lane is 3.15 metres wide, each road width is now calculated and
 | Trunk       |   4   |
 | Tertiary    |   2   |
 
-```{r make road widths}
+```{r road_widths}
 
 roads[roads$type == 'primary'     & is.na(roads$lanes),'lanes'] <- 2
 roads[roads$type == 'secondary'   & is.na(roads$lanes),'lanes'] <- 2
@@ -155,7 +155,7 @@ roads$width             <- as.numeric(roads$lanes) * 3.15
 
 The road widths by road type are now as below
 
-```{r road widths summary}
+```{r road_widths_summary}
 
 aggregate(width ~ type, data=roads, FUN=summary)
 
@@ -172,7 +172,7 @@ mapshot(m, file = paste0(getwd(), "/map.png"), remove_controls = c("zoomControl"
 
 Pavement width is also added to the roads, depending on what type of road it is, as follows
 
-```{r make road widths}
+```{r add pavement widths}
 
 roads$pavement_width   <- NA
 
@@ -188,7 +188,7 @@ roads$total_width <- roads$width + roads$pavement_width
 
 With pavements added the roads width is..
 
-```{r road widths summary}
+```{r road widths summary with pavements}
 
 aggregate(total_width ~ type, data=roads, FUN=summary)
 
