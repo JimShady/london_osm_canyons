@@ -17,6 +17,9 @@ library(knitr)
 library(mapview)
 library(RCurl)
 library(stplanr)
+library(geosphere)
+
+london_raster <- raster('buildings_raster/UK001L2_LONDON_UA2012_DHM/UK001L2_LONDON_UA2012_DHM.tif')
 
 extent              <- extent(london_raster)
 extent              <- as(extent, 'SpatialPolygons')
@@ -156,7 +159,7 @@ end_points                <- spTransform(end_points, latlong)
 
 roads$bearing             <- bearing(start_points, end_points)
 
-roads$height_width_ratio <- roads$weighted_mean / roads$total_width
+roads$height_width_ratio  <- roads$weighted_mean / roads$total_width
 
 rm(end_points, start_points, latlong, ukgrid)
 

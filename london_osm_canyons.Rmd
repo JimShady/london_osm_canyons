@@ -10,16 +10,17 @@ knit: (function(inputFile, encoding) {
   rmarkdown::render(inputFile, encoding = encoding, output_dir = "docs", output_file ="index.html") })
 ---
 
-```{r load libraries, include=F}
+### Loading libraries
+```{r load libraries, message=F, warning=F}
 rm(list=ls(all=TRUE)) 
 
 library(devtools)
-devtools::install_github("r-spatial/sf")
+suppressMessages(devtools::install_github("r-spatial/sf"))
 library(sf)
-devtools::install_github("ropensci/osmdata")
-library(osmdata)
-library(raster)
-devtools::install_github("tidyverse/ggplot2")
+suppressMessages(devtools::install_github("ropensci/osmdata"))
+suppressMessages(library(osmdata))
+suppressMessages(library(raster))
+suppressMessages(devtools::install_github("tidyverse/ggplot2"))
 library(ggplot2)
 library(rgeos)
 library(maptools)
@@ -33,12 +34,12 @@ library(stplanr)
 ```
 
 
-## Import building height data
-Downloaded from [Copernicus Urban Atlas](https://land.copernicus.eu/local/urban-atlas/building-height-2012?tab=mapview), unzipped and extracted. Now the London raster is imported.
+###  Import building height data
+
+Building height data is downloaded from [Copernicus Urban Atlas](https://land.copernicus.eu/local/urban-atlas/building-height-2012?tab=mapview), unzipped and extracted. Now the London raster is imported.
 
 ```{r get building rasters}
 
-print('loading raster')
 london_raster <- raster('buildings_raster/UK001L2_LONDON_UA2012_DHM/UK001L2_LONDON_UA2012_DHM.tif')
 plot(london_raster)
 title('Raster file of London Building heights')
@@ -48,9 +49,9 @@ title('Raster file of London Building heights (zoomed)')
 
 ```
 
-## Import OSM roads for the same area as the raster
+### Import OSM roads data
 
-### Get the boundary for the data we want to download
+First we get the extent of the raster
 ```{r get extent of the raster}
 
 extent              <- extent(london_raster)
@@ -66,51 +67,42 @@ max_y   <- extent(extent)[4]
 rm(extent)
 ```
 
-Using the [osmdata package](https://cran.r-project.org/web/packages/osmdata/osmdata.pdf) we can download osmdata for the above bounding box. Roads have the value 'highway' in [OpenStreetMap](https://en.wikipedia.org/wiki/OpenStreetMap). Within that heading, we can also filter using the following tags:
+Now using the [osmdata package](https://cran.r-project.org/web/packages/osmdata/osmdata.pdf) we can download osmdata for the extent we just defined. Roads have the value 'highway' in [OpenStreetMap](https://en.wikipedia.org/wiki/OpenStreetMap). Within that heading, we can also filter using the following tags:
 
 ```{r download data from osm, warning=F}
 available_tags('highway')
 ```
 
-```{r import road data}
-print('loading roads')
+Now we import OSM roads data for the following road types.
 
+```{r import road data}
 primary           <- opq(bbox = c(min_x, min_y, max_x, max_y)) %>% add_osm_feature(key = 'highway', value='primary') %>% osmdata_sf()
-primary           <- primary$osm_lines[,c('osm_id', 'lanes', 'geometry')]
+primary           <- primary$osm_lines[,c('osm_id', 'oneway', 'lanes', 'geometry')]
 primary$type      <- 'primary'
 
-print('loaded primary')
-
 secondary         <- opq(bbox = c(min_x, min_y, max_x, max_y)) %>% add_osm_feature(key = 'highway', value='secondary') %>% osmdata_sf()
-secondary         <- secondary$osm_lines[,c('osm_id', 'lanes', 'geometry')]
+secondary         <- secondary$osm_lines[,c('osm_id', 'oneway', 'lanes', 'geometry')]
 secondary$type    <- 'secondary'
 
-print('loaded secondary')
-
 motorway          <- opq(bbox = c(min_x, min_y, max_x, max_y)) %>% add_osm_feature(key = 'highway', value='motorway') %>% osmdata_sf()
-motorway          <- motorway$osm_lines[,c('osm_id', 'lanes', 'geometry')]
+motorway          <- motorway$osm_lines[,c('osm_id', 'oneway', 'lanes', 'geometry')]
 motorway$type     <- 'motorway'
 
-print('loaded motorway')
-
 trunk             <- opq(bbox = c(min_x, min_y, max_x, max_y)) %>% add_osm_feature(key = 'highway', value='trunk') %>% osmdata_sf()
-trunk             <- trunk$osm_lines[,c('osm_id', 'lanes', 'geometry')]
+trunk             <- trunk$osm_lines[,c('osm_id', 'oneway', 'lanes', 'geometry')]
 trunk$type        <- 'trunk'
 
-print('loaded trunk')
-
 tertiary          <- opq(bbox = c(min_x, min_y, max_x, max_y)) %>% add_osm_feature(key = 'highway', value='tertiary') %>% osmdata_sf()
-tertiary          <- tertiary$osm_lines[,c('osm_id', 'lanes', 'geometry')]
+tertiary          <- tertiary$osm_lines[,c('osm_id', 'oneway', 'lanes', 'geometry')]
 tertiary$type     <- 'tertiary'
+```
 
-print('loaded tertiary')
+Then bind them all into one object
 
-print('binding roads')
-
+```{r bind_roads}
 roads             <- rbind(primary, secondary, motorway, trunk, tertiary) 
-roads$osm_id      <- as.numeric(as.character(roads$osm_id))
 
-print('bound roads')
+roads$osm_id      <- as.numeric(as.character(roads$osm_id))
 
 rm(primary, secondary, motorway, trunk, tertiary, max_x, min_x, max_y, min_y)
 
@@ -124,33 +116,36 @@ roads             <- roads[!grepl(';', roads$lanes),]
 roads$lanes       <- as.numeric(roads$lanes)
 ```
 
-The number of lanes for each road type
+The number of lanes for each road type is below.
 
 ```{r check lanes data}
 table(roads$type, roads$lanes)
 
 ```
 
-Presuming that a lane is 3.15 metres wide, each road width is now calculated and added to the dataset. Where roads do not have numbers of lanes given, the following are presumed:
+Where this is missing, we fill in the blanks, using the mean values of that road type, rounded.
 
-| Road type   | Lanes |
-|-------------|-------|
-| Primary     |   2   |
-| Secondary   |   2   |
-| Motorway    |   6   |
-| Residential |   2   |
-| Trunk       |   4   |
-| Tertiary    |   2   |
+```{r fill_empty_roads}
+
+roads[roads$type == 'primary'     & is.na(roads$lanes),'lanes'] <- round(mean(roads[roads$type == 'primary'     & !is.na(roads$lanes),]$lanes),0)
+roads[roads$type == 'secondary'   & is.na(roads$lanes),'lanes'] <- round(mean(roads[roads$type == 'secondary'   & !is.na(roads$lanes),]$lanes),0)
+roads[roads$type == 'motorway'    & is.na(roads$lanes),'lanes'] <- round(mean(roads[roads$type == 'motorway'    & !is.na(roads$lanes),]$lanes),0)
+roads[roads$type == 'trunk'       & is.na(roads$lanes),'lanes'] <- round(mean(roads[roads$type == 'trunk'       & !is.na(roads$lanes),]$lanes),0)
+roads[roads$type == 'tertiary'    & is.na(roads$lanes),'lanes'] <- round(mean(roads[roads$type == 'tertiary'    & !is.na(roads$lanes),]$lanes),0)
+```
+
+Now, presuming that a lane is 3.15 metres wide, each road width is now calculated and added to the dataset. 
 
 ```{r road_widths}
-
-roads[roads$type == 'primary'     & is.na(roads$lanes),'lanes'] <- 2
-roads[roads$type == 'secondary'   & is.na(roads$lanes),'lanes'] <- 2
-roads[roads$type == 'motorway'    & is.na(roads$lanes),'lanes'] <- 6
-roads[roads$type == 'trunk'       & is.na(roads$lanes),'lanes'] <- 4
-roads[roads$type == 'tertiary'    & is.na(roads$lanes),'lanes'] <- 2
-
 roads$width             <- as.numeric(roads$lanes) * 3.15
+```
+
+OSM splits some roads into two, like Marylebone Road. This is a problem for calculating height to width ratios. So we are going to try and identify these.
+
+```{r marylebone_issue}
+roads$half_of_one <- NA
+
+roads[roads$oneway == 'yes' & !is.na(roads$oneway) & roads$type == 'trunk' & !is.na(roads$type),'half_of_one'] <- as.character('Yes')
 ```
 
 The road widths by road type are now as below
@@ -164,7 +159,7 @@ ggplot(roads, aes(y = width, x = type, group=type, fill=type)) + geom_boxplot() 
 
 The widest road in the dataset is here
 ```{r checking roads}
-m <- mapview(st_buffer(roads[roads$width>25,][1,],100), map.types = 'Esri.WorldImagery', alpha.regions=0.1)
+m <- mapview(st_buffer(st_transform(roads[roads$width>25,][1,],27700),100), map.types = 'Esri.WorldImagery', alpha.regions=0.1)
 mapshot(m, file = paste0(getwd(), "/map.png"), remove_controls = c("zoomControl", "layersControl", "homeButton","scaleBar"))
 ```
 
@@ -222,7 +217,16 @@ Make the buffers around the roads
 roads                   <- st_transform(roads, 27700)
 
 roads$area              <- st_geometry(st_buffer(roads, dist = 15)) / st_geometry(st_buffer(roads, dist = 10))
+```
 
+For the roads like Marylebone Road, going to double and add 5 metres to the buffers.
+```{r special_case}
+roads[!is.na(roads$half_of_one),]$area              <- st_geometry(st_buffer(roads[!is.na(roads$half_of_one),], dist = 15*2+5)) /
+                                                       st_geometry(st_buffer(roads[!is.na(roads$half_of_one),], dist = 10*2+5))
+```
+
+Transform the buffers to the same CRS as the raster we're going to extract from.
+```{r buffers_transform}
 roads$geometry          <- st_transform(roads$geometry,4326)
 roads$area              <- st_transform(roads$area, 4326)
 
@@ -283,31 +287,8 @@ rm(london_raster)
 Now need to get the bearing of each road from start point to end point
 
 ```{r calculate bearing}
-ukgrid = "+init=epsg:27700"
 
-start_points              <- as(line_to_points(roads), 'Spatial')
-proj4string(start_points) <- latlong
-start_points              <- spTransform(start_points, ukgrid)
-start_points              <- data.frame(start_points)
-start_points              <- aggregate(.~id, start_points, FUN=head, 1)
-start_points$optional     <- NULL
-names(start_points)       <- c('id', 'start_x', 'start_y')
-coordinates(start_points) <- ~start_x+start_y
-proj4string(start_points) <- ukgrid
-start_points              <- spTransform(start_points, latlong)
-
-end_points                <- as(line_to_points(roads), 'Spatial')
-proj4string(end_points)   <- latlong
-end_points                <- spTransform(end_points, ukgrid)
-end_points                <- data.frame(end_points)
-end_points                <- aggregate(.~id, end_points, FUN=tail, 1)
-end_points$optional       <- NULL
-names(end_points)         <- c('id', 'end_x', 'end_y')
-coordinates(end_points)   <- ~end_x+end_y
-proj4string(end_points)   <- ukgrid
-end_points                <- spTransform(end_points, latlong)
-
-roads$bearing             <- bearing(start_points, end_points)
+roads$bearing             <- line_bearing(roads)
 
 hist(roads$bearing)
 
