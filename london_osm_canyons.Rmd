@@ -36,7 +36,11 @@ library(stplanr)
 
 ###  Import building height data
 
-Building height data is downloaded from [Copernicus Urban Atlas](https://land.copernicus.eu/local/urban-atlas/building-height-2012?tab=mapview), unzipped and extracted. Now the London raster is imported.
+Building height data is downloaded from [Copernicus Urban Atlas](https://land.copernicus.eu/local/urban-atlas/building-height-2012?tab=mapview), unzipped and extracted.
+
+The methodology for their creation, by [gaf.d])(https://www.gaf.de/), was as following: "Our original input data were Cartosat-1 acquisitions. The following processing system uses a customised and specialised semi-global matching algorithm to generate am 3m in close cooperation with DLR (German Aerospace Center). Subsequent to the highly automated DSM generation, a DTM was calculated and a nDSM (normalised Digital Surface Model) derived by using internal software and processing tools. The nDSM were finally resampled from 3m up to 10m resolution by using the maximum height value". 
+
+This raster is then imported.
 
 ```{r get building rasters}
 
@@ -104,7 +108,7 @@ roads             <- rbind(primary, secondary, motorway, trunk, tertiary)
 
 roads$osm_id      <- as.numeric(as.character(roads$osm_id))
 
-rm(primary, secondary, motorway, trunk, tertiary, max_x, min_x, max_y, min_y)
+rm(primary, secondary, motorway, trunk, tertiary)
 
 ```
 
@@ -165,19 +169,30 @@ mapshot(m, file = paste0(getwd(), "/map.png"), remove_controls = c("zoomControl"
 
 ![](map.png)
 
-Pavement width is also added to the roads, depending on what type of road it is, as follows
+Pavement width is also added to the roads, depending on what type of road it is, as follows. Presumes 3 metres wide pavement
 
 ```{r add pavement widths}
 
 roads$pavement_width   <- NA
 
-roads[roads$type == 'primary',  'pavement_width'] <- 4
-roads[roads$type == 'secondary','pavement_width'] <- 4
-roads[roads$type == 'motorway', 'pavement_width'] <- 0
-roads[roads$type == 'trunk',    'pavement_width'] <- 4
-roads[roads$type == 'tertiary', 'pavement_width'] <- 4
+roads[roads$type == 'primary'   & is.na(roads$half_of_one),  'pavement_width'] <- 6
+roads[roads$type == 'secondary' & is.na(roads$half_of_one),  'pavement_width'] <- 6
+roads[roads$type == 'motorway'  & is.na(roads$half_of_one),  'pavement_width'] <- 0
+roads[roads$type == 'trunk'     & is.na(roads$half_of_one),  'pavement_width'] <- 6
+roads[roads$type == 'tertiary'  & is.na(roads$half_of_one),  'pavement_width'] <- 6
+
+roads[roads$type == 'primary'   & !is.na(roads$half_of_one) & roads$half_of_one == 'Yes', 'pavement_width'] <- 3
+roads[roads$type == 'secondary' & !is.na(roads$half_of_one) & roads$half_of_one == 'Yes', 'pavement_width'] <- 3
+roads[roads$type == 'motorway'  & !is.na(roads$half_of_one) & roads$half_of_one == 'Yes', 'pavement_width'] <- 0
+roads[roads$type == 'trunk'     & !is.na(roads$half_of_one) & roads$half_of_one == 'Yes', 'pavement_width'] <- 3
+roads[roads$type == 'tertiary'  & !is.na(roads$half_of_one) & roads$half_of_one == 'Yes', 'pavement_width'] <- 3
 
 roads$total_width <- roads$width + roads$pavement_width
+```
+
+Add half central reservation
+```{r}
+roads[roads$half_of_one == 'Yes' & !is.na(roads$half_of_one),]$total_width <- roads[roads$half_of_one == 'Yes' & !is.na(roads$half_of_one),]$total_width + 2
 
 ```
 
@@ -247,18 +262,22 @@ plot(st_geometry(roads$area), xlim=c(3621000, 3622000), add=T)
 Interactive map view of one feature
 
 ```{r map view of a buffer}
-temp_raster <- extent(st_bbox(roads[10,])$xmin-40, st_bbox(roads[10,])$xmax+40, 
-                      st_bbox(roads[10,])$ymin-40, st_bbox(roads[10,])$ymax+40)
+osm_id_to_examine <- 379356929
+
+temp_raster <- extent(st_bbox(roads[roads$osm_id == osm_id_to_examine,])$xmin-40, st_bbox(roads[roads$osm_id == osm_id_to_examine,])$xmax+40, 
+                      st_bbox(roads[roads$osm_id == osm_id_to_examine,])$ymin-40, st_bbox(roads[roads$osm_id == osm_id_to_examine,])$ymax+40)
 temp_raster <- crop(london_raster, temp_raster)
 
-mapview(temp_raster, alpha.regions = 0.4, map.types = 'OpenStreetMap.BlackAndWhite') %>% addFeatures(st_transform(roads[10,]$area,4326))
+mapview(temp_raster, alpha.regions = 0.4, map.types = 'OpenStreetMap.BlackAndWhite') %>% addFeatures(st_transform(roads[roads$osm_id == osm_id_to_examine,]$area,4326))
 
-rm(temp_raster)
+rm(temp_raster, osm_id_to_examine)
 ```
 
 Now extract the data we need from the raster (this takes circa 12 hours)
 
 ```{r extracting_heights}
+start_time <- Sys.time()
+
 road_polygons       <- as(roads$area,'Spatial')
 roads$area          <- NULL 
 
@@ -272,9 +291,13 @@ extracted <- extract(london_raster, road_polygons, weights=T, na.rm=F)
 
 print('extracted data, using sapply to put into the roads file')
 
-roads$weighted_mean <- sapply(extracted, FUN = function(x)(sum(x[,1] * x[,2])))
-roads$cell_count    <- sapply(extracted, FUN = function(x)(length(x[,1])))
-roads$zero_cells    <- sapply(extracted, FUN = function(x)(sum(x[,1]==0)))
+roads$weighted_mean                           <- sapply(extracted, FUN = function(x)(sum(x[,1] * x[,2])))
+roads$cell_count                              <- sapply(extracted, FUN = function(x)(length(x[,1])))
+roads$zero_cells                              <- sapply(extracted, FUN = function(x)(sum(x[,1]==0)))
+roads$max_height                              <- sapply(extracted, FUN = function(x)(max(x[,1], na.rm=T)))
+roads$non_zero_means                          <- sapply(extracted, FUN = function(x)(sum(x[x[,1]>0,1] * (x[x[,1]>0,2] / sum(x[x[,1]>0,2])))))
+
+roads[roads$max_height == '-Inf',]$max_height <- NA
 
 print('done')
 
@@ -282,6 +305,11 @@ roads$geometry      <- st_transform(roads$geometry, 4326)
 
 rm(london_raster)
 
+end_time <- Sys.time()
+
+print(end_time - start_time)
+
+rm(start_time, end_time)
 ```
 
 Now need to get the bearing of each road from start point to end point
@@ -299,6 +327,11 @@ Add another column for height to width ratio
 ```{r height and width ratio}
 roads$height_width_ratio <- roads$weighted_mean / roads$total_width
 
+roads$height_width_ratio_excl_zeros <- roads$non_zero_means / roads$total_width
+
+roads[roads$half_of_one == 'Yes' & !is.na(roads$half_of_one),]$height_width_ratio_excl_zeros <- roads[roads$half_of_one == 'Yes' & !is.na(roads$half_of_one),]$non_zero_means / 
+                                                                                                (roads[roads$half_of_one == 'Yes' & !is.na(roads$half_of_one),]$total_width * 2)
+                                                                                                
 ggplot(roads, aes(y = height_width_ratio, group=type, x=type, fill=type)) + geom_boxplot() + ggtitle('Height to width ratio by street type')
 
 ```
@@ -312,4 +345,103 @@ print('saving data')
 
 saveRDS(roads, file = "london_roads_output.rds")
 
+```
+
+
+Need to classify the roads as canyons and directions for modelling. If the height is above 10 metres they wil l be classified as a canyon of a specific direction as such.
+```{r road_classification}
+roads$classification     <- NA 
+```
+
+First the North-South canyon road type (type 1)
+
+```{r north_south}
+
+roads[roads$non_zero_means > 10 & !is.na(roads$non_zero_means) & roads$bearing >= -22.5   & roads$bearing <= 22.5,]$classification  <- 1
+roads[roads$non_zero_means > 10 & !is.na(roads$non_zero_means) & roads$bearing >= 157.5   & roads$bearing <= 180,]$classification   <- 1
+roads[roads$non_zero_means > 10 & !is.na(roads$non_zero_means) & roads$bearing <= -157.5  & roads$bearing > -180,]$classification   <- 1
+```
+
+Now the East-West canyon road type (type 2)
+
+```{r east_west}
+roads[roads$non_zero_means > 10 & !is.na(roads$non_zero_means) & roads$bearing >= 67.5    & roads$bearing <= 112.5,]$classification <- 2
+roads[roads$non_zero_means > 10 & !is.na(roads$non_zero_means) & roads$bearing >= -112.5  & roads$bearing <= -67.5,]$classification <- 2
+```
+
+Now the South-East to North-West canyon road type (type 3)
+
+```{r south_east_north_west}
+
+roads[roads$non_zero_means > 10 & !is.na(roads$non_zero_means) & roads$bearing >= 112.5    & roads$bearing <= 157.5,]$classification  <- 3
+roads[roads$non_zero_means > 10 & !is.na(roads$non_zero_means) & roads$bearing <= -22.5  & roads$bearing   >= -67.5,]$classification  <- 3
+```
+
+Now the South-West to North-East canyon road type (type 4)
+
+```{r south_west_north_east}
+
+roads[roads$non_zero_means > 10 & !is.na(roads$non_zero_means) & roads$bearing >= 22.5    & roads$bearing  <= 67.5,]$classification   <- 4
+roads[roads$non_zero_means > 10 & !is.na(roads$non_zero_means) & roads$bearing <= -112.5  & roads$bearing >= -157.5,]$classification  <- 4
+```
+
+Now non-street-canyons that are open roads (type 5)
+
+```{r typical}
+
+roads[roads$non_zero_means <= 1 & !is.na(roads$non_zero_means) ,]$classification   <- 5
+
+```
+
+Now non-street-canyons that are typical roads (type 6)
+
+```{r typical}
+
+roads[roads$non_zero_means > 1 & roads$non_zero_means <= 10 & !is.na(roads$non_zero_means) ,]$classification   <- 6
+
+```
+
+Haven't been working on them, but think it's time time to add the residential roads back in and harmonise them with the main roads data.
+
+```{r add_residential_roads}
+residential           <- opq(bbox = c(min_x, min_y, max_x, max_y)) %>% add_osm_feature(key = 'highway', value='residential') %>% osmdata_sf()
+residential           <- residential$osm_lines[,c('osm_id', 'oneway', 'lanes', 'geometry')]
+residential$type      <- 'residential'
+
+residential$osm_id      <- as.numeric(as.character(residential$osm_id))
+
+residential$lanes       <- as.character(residential$lanes)
+residential             <- residential[!grepl(';', residential$lanes),]
+residential$lanes       <- as.numeric(residential$lanes)
+
+residential[is.na(residential$lanes),'lanes'] <- 2
+
+residential$width                           <- residential$lanes * 3.15
+residential$half_of_one                     <- as.character(NA)
+residential$pavement_width                  <- as.numeric(6)
+residential$total_width                     <- as.numeric(residential$width + residential$pavement_width)
+residential$weighted_mean                   <- as.numeric(NA)
+residential$cell_count                      <- as.integer(NA)
+residential$zero_cells                      <- as.integer(NA)
+residential$bearing                         <- as.numeric(NA)
+residential$height_width_ratio              <- as.numeric(NA)
+residential$max_height                      <- as.numeric(NA)
+residential$non_zero_means                  <- as.numeric(NA)
+residential$height_width_ratio_excl_zeros   <- as.numeric(NA)
+residential$classification                  <- as.numeric(6)
+
+col_order <- names(roads)
+
+residential <- residential[,col_order]
+
+roads <- rbind(roads, residential)
+
+rm(residential)
+
+```
+
+Now write out the classified roads as a geojson
+
+```{r write_out}
+st_write(roads, 'final_roads_london.geojson')
 ```
