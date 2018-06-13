@@ -31,6 +31,7 @@ library(knitr)
 library(mapview)
 library(RCurl)
 library(stplanr)
+library(plot3D)
 ```
 
 
@@ -385,7 +386,7 @@ roads[roads$non_zero_means > 10 & !is.na(roads$non_zero_means) & roads$bearing >
 roads[roads$non_zero_means > 10 & !is.na(roads$non_zero_means) & roads$bearing <= -112.5  & roads$bearing >= -157.5,]$classification  <- 4
 ```
 
-Now non-street-canyons that are open roads (type 5)
+Now non-street-canyons that are open roads are classified as type 5. There are `r nrow(roads[roads$non_zero_means <= 1 & !is.na(roads$non_zero_means) ,])` of these.
 
 ```{r typical}
 
@@ -393,7 +394,7 @@ roads[roads$non_zero_means <= 1 & !is.na(roads$non_zero_means) ,]$classification
 
 ```
 
-Now non-street-canyons that are typical roads (type 6)
+Now non-street-canyons that are typical roads are classified as type 6. There are `r nrow(roads[roads$non_zero_means > 1 & roads$non_zero_means <= 10 & !is.na(roads$non_zero_means) ,])` of these.
 
 ```{r typical}
 
@@ -444,4 +445,33 @@ Now write out the classified roads as a geojson
 
 ```{r write_out}
 st_write(roads, 'final_roads_london.geojson')
+```
+
+Roads that are covered by the height raster
+
+```{r road_height_and_width_plot}
+values(london_raster)[values(london_raster) == 0] = NA
+
+plot(london_raster, col='red')
+plot(st_geometry(st_transform(roads, crs(london_raster)@projargs)), add=T, color=rgb(0,0,0,alpha=0.1))
+plot(london_raster, col='red', add=T)
+
+```
+
+There are `r nrow(roads)` in the dataset.
+
+```{r}
+##  Create cuts:
+x_c <- cut(roads[!is.na(roads$non_zero_means) & roads$non_zero_means != 0,]$non_zero_means, 20)
+y_c <- cut(roads[!is.na(roads$non_zero_means) & roads$non_zero_means != 0,]$total_width, 20)
+
+##  Calculate joint counts at cut levels:
+z <- table(x_c, y_c)
+
+##  Plot as a 3D histogram:
+hist3D(z=z, border="black")
+
+##  Plot as a 2D heatmap:
+image2D(z=z, border="black")
+
 ```
