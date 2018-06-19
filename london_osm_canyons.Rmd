@@ -15,12 +15,12 @@ knit: (function(inputFile, encoding) {
 rm(list=ls(all=TRUE)) 
 
 library(devtools)
-suppressMessages(devtools::install_github("r-spatial/sf"))
+#suppressMessages(devtools::install_github("r-spatial/sf"))
 library(sf)
-suppressMessages(devtools::install_github("ropensci/osmdata"))
+#suppressMessages(devtools::install_github("ropensci/osmdata"))
 suppressMessages(library(osmdata))
 suppressMessages(library(raster))
-suppressMessages(devtools::install_github("tidyverse/ggplot2"))
+#suppressMessages(devtools::install_github("tidyverse/ggplot2"))
 library(ggplot2)
 library(rgeos)
 library(maptools)
@@ -28,7 +28,7 @@ library(rgdal)
 library(rgeos)
 library(data.table)
 library(knitr)
-library(mapview)
+suppressMessages(library(mapview))
 library(RCurl)
 library(stplanr)
 library(plot3D)
@@ -269,7 +269,7 @@ temp_raster <- extent(st_bbox(roads[roads$osm_id == osm_id_to_examine,])$xmin-40
                       st_bbox(roads[roads$osm_id == osm_id_to_examine,])$ymin-40, st_bbox(roads[roads$osm_id == osm_id_to_examine,])$ymax+40)
 temp_raster <- crop(london_raster, temp_raster)
 
-mapview(temp_raster, alpha.regions = 0.4, map.types = 'OpenStreetMap.BlackAndWhite') %>% addFeatures(st_transform(roads[roads$osm_id == osm_id_to_examine,]$area,4326))
+mapview(temp_raster, alpha.regions = 0.4, map.types = 'OpenStreetMap.BlackAndWhite') %>% addFeatures(st_transform(roads[roads$osm_id == osm_id_to_examine,],4326))
 
 rm(temp_raster, osm_id_to_examine)
 ```
@@ -352,45 +352,78 @@ saveRDS(roads, file = "london_roads_output.rds")
 Need to classify the roads as canyons and directions for modelling. If the height is above 10 metres they wil l be classified as a canyon of a specific direction as such.
 ```{r road_classification}
 roads$classification     <- NA 
+
 ```
 
 First the North-South canyon road type (type 1)
 
 ```{r north_south}
 
-roads[roads$non_zero_means > 10 & !is.na(roads$non_zero_means) & roads$bearing >= -22.5   & roads$bearing <= 22.5,]$classification  <- 1
-roads[roads$non_zero_means > 10 & !is.na(roads$non_zero_means) & roads$bearing >= 157.5   & roads$bearing <= 180,]$classification   <- 1
-roads[roads$non_zero_means > 10 & !is.na(roads$non_zero_means) & roads$bearing <= -157.5  & roads$bearing > -180,]$classification   <- 1
+roads[roads$non_zero_means > 10 & roads$non_zero_means <= 20 & !is.na(roads$non_zero_means) & roads$bearing >= -22.5   & roads$bearing <= 22.5,]$classification    <- '1a'
+roads[roads$non_zero_means > 10 & roads$non_zero_means <= 20 & !is.na(roads$non_zero_means) & roads$bearing >= 157.5   & roads$bearing <= 180,]$classification     <- '1a'
+roads[roads$non_zero_means > 10 & roads$non_zero_means <= 20 & !is.na(roads$non_zero_means) & roads$bearing <= -157.5  & roads$bearing > -180,]$classification     <- '1a'
+
+
+roads[roads$non_zero_means > 20 & roads$non_zero_means <= 30 & !is.na(roads$non_zero_means) & roads$bearing >= -22.5   & roads$bearing <= 22.5,]$classification  <- '1b'
+roads[roads$non_zero_means > 20 & roads$non_zero_means <= 30 & !is.na(roads$non_zero_means) & roads$bearing >= 157.5   & roads$bearing <= 180,]$classification   <- '1b'
+roads[roads$non_zero_means > 20 & roads$non_zero_means <= 30 & !is.na(roads$non_zero_means) & roads$bearing <= -157.5  & roads$bearing > -180,]$classification   <- '1b'
+
+roads[roads$non_zero_means > 30 & !is.na(roads$non_zero_means) & roads$bearing >= -22.5   & roads$bearing <= 22.5,]$classification  <- '1c'
+roads[roads$non_zero_means > 30 & !is.na(roads$non_zero_means) & roads$bearing >= 157.5   & roads$bearing <= 180,]$classification   <- '1c'
+roads[roads$non_zero_means > 30 & !is.na(roads$non_zero_means) & roads$bearing <= -157.5  & roads$bearing > -180,]$classification   <- '1c'
+
+
 ```
 
 Now the East-West canyon road type (type 2)
 
 ```{r east_west}
-roads[roads$non_zero_means > 10 & !is.na(roads$non_zero_means) & roads$bearing >= 67.5    & roads$bearing <= 112.5,]$classification <- 2
-roads[roads$non_zero_means > 10 & !is.na(roads$non_zero_means) & roads$bearing >= -112.5  & roads$bearing <= -67.5,]$classification <- 2
+roads[roads$non_zero_means > 10 & roads$non_zero_means <= 20 & !is.na(roads$non_zero_means) & roads$bearing >= 67.5    & roads$bearing <= 112.5,]$classification <- '2a'
+roads[roads$non_zero_means > 10 & roads$non_zero_means <= 20 & !is.na(roads$non_zero_means) & roads$bearing >= -112.5  & roads$bearing <= -67.5,]$classification <- '2a'
+
+roads[roads$non_zero_means > 20 & roads$non_zero_means <= 30 & !is.na(roads$non_zero_means) & roads$bearing >= 67.5    & roads$bearing <= 112.5,]$classification <- '2b'
+roads[roads$non_zero_means > 20 & roads$non_zero_means <= 30 & !is.na(roads$non_zero_means) & roads$bearing >= -112.5  & roads$bearing <= -67.5,]$classification <- '2b'
+
+roads[roads$non_zero_means > 30 & !is.na(roads$non_zero_means) & roads$bearing >= 67.5    & roads$bearing <= 112.5,]$classification <- '2c'
+roads[roads$non_zero_means > 30 & !is.na(roads$non_zero_means) & roads$bearing >= -112.5  & roads$bearing <= -67.5,]$classification <- '2c'
+
 ```
 
 Now the South-East to North-West canyon road type (type 3)
 
 ```{r south_east_north_west}
 
-roads[roads$non_zero_means > 10 & !is.na(roads$non_zero_means) & roads$bearing >= 112.5    & roads$bearing <= 157.5,]$classification  <- 3
-roads[roads$non_zero_means > 10 & !is.na(roads$non_zero_means) & roads$bearing <= -22.5  & roads$bearing   >= -67.5,]$classification  <- 3
+roads[roads$non_zero_means > 10 & roads$non_zero_means <= 20 & !is.na(roads$non_zero_means) & roads$bearing >= 112.5    & roads$bearing <= 157.5,]$classification  <- '3a'
+roads[roads$non_zero_means > 10 & roads$non_zero_means <= 20 & !is.na(roads$non_zero_means) & roads$bearing <= -22.5  & roads$bearing   >= -67.5,]$classification  <- '3a'
+
+roads[roads$non_zero_means > 20 & roads$non_zero_means <= 30 & !is.na(roads$non_zero_means) & roads$bearing >= 112.5    & roads$bearing <= 157.5,]$classification  <- '3b'
+roads[roads$non_zero_means > 20 & roads$non_zero_means <= 30 & !is.na(roads$non_zero_means) & roads$bearing <= -22.5  & roads$bearing   >= -67.5,]$classification  <- '3b'
+
+roads[roads$non_zero_means > 30  & !is.na(roads$non_zero_means) & roads$bearing >= 112.5    & roads$bearing <= 157.5,]$classification  <- '3c'
+roads[roads$non_zero_means > 30  & !is.na(roads$non_zero_means) & roads$bearing <= -22.5  & roads$bearing   >= -67.5,]$classification  <- '3c'
+
 ```
 
 Now the South-West to North-East canyon road type (type 4)
 
 ```{r south_west_north_east}
 
-roads[roads$non_zero_means > 10 & !is.na(roads$non_zero_means) & roads$bearing >= 22.5    & roads$bearing  <= 67.5,]$classification   <- 4
-roads[roads$non_zero_means > 10 & !is.na(roads$non_zero_means) & roads$bearing <= -112.5  & roads$bearing >= -157.5,]$classification  <- 4
+roads[roads$non_zero_means > 10 & roads$non_zero_means <= 20 & !is.na(roads$non_zero_means) & roads$bearing >= 22.5    & roads$bearing  <= 67.5,]$classification   <- '4a'
+roads[roads$non_zero_means > 10 & roads$non_zero_means <= 20 & !is.na(roads$non_zero_means) & roads$bearing <= -112.5  & roads$bearing >= -157.5,]$classification  <- '4a'
+
+roads[roads$non_zero_means > 10 & roads$non_zero_means <= 20 & !is.na(roads$non_zero_means) & roads$bearing >= 22.5    & roads$bearing  <= 67.5,]$classification   <- '4b'
+roads[roads$non_zero_means > 10 & roads$non_zero_means <= 20 & !is.na(roads$non_zero_means) & roads$bearing <= -112.5  & roads$bearing >= -157.5,]$classification  <- '4b'
+
+roads[roads$non_zero_means > 30 & !is.na(roads$non_zero_means) & roads$bearing >= 22.5    & roads$bearing  <= 67.5,]$classification   <- '4c'
+roads[roads$non_zero_means > 30 & !is.na(roads$non_zero_means) & roads$bearing <= -112.5  & roads$bearing >= -157.5,]$classification  <- '4c'
+
 ```
 
 Now non-street-canyons that are open roads are classified as type 5. There are `r nrow(roads[roads$non_zero_means <= 1 & !is.na(roads$non_zero_means) ,])` of these.
 
-```{r typical}
+```{r open_road}
 
-roads[roads$non_zero_means <= 1 & !is.na(roads$non_zero_means) ,]$classification   <- 5
+roads[roads$non_zero_means <= 1 & !is.na(roads$non_zero_means) ,]$classification   <- 5 #open
 
 ```
 
@@ -398,7 +431,7 @@ Now non-street-canyons that are typical roads are classified as type 6. There ar
 
 ```{r typical}
 
-roads[roads$non_zero_means > 1 & roads$non_zero_means <= 10 & !is.na(roads$non_zero_means) ,]$classification   <- 6
+roads[roads$non_zero_means > 1 & roads$non_zero_means <= 10 & !is.na(roads$non_zero_means) ,]$classification    <- 6 #typical
 
 ```
 
@@ -441,13 +474,15 @@ rm(residential)
 
 ```
 
-Now write out the classified roads as a geojson
+Now get the median height and width for each road type
 
-```{r write_out}
-st_write(roads, 'final_roads_london.geojson')
+```{r get_summary_width_height}
+
+
+
 ```
 
-Roads that are covered by the height raster
+Roads that are covered by the height raster shown
 
 ```{r road_height_and_width_plot}
 values(london_raster)[values(london_raster) == 0] = NA
@@ -458,20 +493,50 @@ plot(london_raster, col='red', add=T)
 
 ```
 
+
+```{r}
+kable(aggregate(data = roads, cbind(non_zero_means, total_width) ~ classification, FUN=summary))
+
+kable(aggregate(data = roads, cbind(lanes, total_width) ~ type, FUN=mean))
+```
+
+
+
+
+
 There are `r nrow(roads)` in the dataset.
 
 ```{r}
-##  Create cuts:
-x_c <- cut(roads[!is.na(roads$non_zero_means) & roads$non_zero_means != 0,]$non_zero_means, 20)
-y_c <- cut(roads[!is.na(roads$non_zero_means) & roads$non_zero_means != 0,]$total_width, 20)
+##  Create height cuts:
+roads$height_cut <- NA
 
-##  Calculate joint counts at cut levels:
-z <- table(x_c, y_c)
+breaks <- c(0,5,10,20,30,40,50,500)
 
-##  Plot as a 3D histogram:
-hist3D(z=z, border="black")
+roads$height_cut <-  cut(roads$non_zero_means, breaks)
 
-##  Plot as a 2D heatmap:
-image2D(z=z, border="black")
+ggplot(roads[!is.na(roads$height_cut),], aes(x=total_width)) + geom_histogram(fill='red') + facet_grid(.~height_cut)
+
+```
+
+If we are going to have more than one type of street canyon, they would be as follows:
+
+Current number of canyons: `r nrow(roads[roads$classification %in% c(1,2,3,4),])`
+
+Change to:
+
+Low canyons `r nrow(roads[roads$non_zero_means > 10 & roads$non_zero_means <= 20 & !is.na(roads$non_zero_means),])`
+
+Medium canyons `r nrow(roads[roads$non_zero_means > 20 & roads$non_zero_means <= 30 & !is.na(roads$non_zero_means),])`
+
+High canyons `r nrow(roads[roads$non_zero_means > 30 & !is.na(roads$non_zero_means),])`
+
+```{r }
+
+nrow(roads[roads$total_width > 10 & roads$total_width < 20 & !is.na(roads$total_width) & roads$non_zero_means >= 10 & roads$non_zero_means <= 20 & !is.na(roads$non_zero_means),]) #low canyon, 4,251
+
+
+nrow(roads[roads$total_width > 10 & roads$total_width < 20 & !is.na(roads$total_width) & roads$non_zero_means > 20 & roads$non_zero_means <= 30 & !is.na(roads$non_zero_means),]) #medium canyon, 1,121
+
+nrow(roads[roads$total_width > 10 & roads$total_width < 20 & !is.na(roads$total_width) & roads$non_zero_means > 30 & !is.na(roads$non_zero_means),]) #high canyons 356
 
 ```
