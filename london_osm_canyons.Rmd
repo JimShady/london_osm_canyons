@@ -31,7 +31,6 @@ library(knitr)
 suppressMessages(library(mapview))
 library(RCurl)
 library(stplanr)
-library(plot3D)
 ```
 
 
@@ -323,33 +322,34 @@ hist(roads$bearing)
 
 ```
 
+Where the road is 'half of one', double the width of the road
+
+```{r double_width_for_half_roads}
+roads[roads$half_of_one == 'Yes' & !is.na(roads$half_of_one),]$total_width <- roads[roads$half_of_one == 'Yes' & !is.na(roads$half_of_one),]$total_width * 2
+```
+
 Add another column for height to width ratio
 
 ```{r height and width ratio}
 roads$height_width_ratio <- roads$weighted_mean / roads$total_width
+```
 
+Add another height widhth ratio column for when using the non-zero height from the raster
+
+```{r add_another_height_width_ratio}
 roads$height_width_ratio_excl_zeros <- roads$non_zero_means / roads$total_width
+```
 
-roads[roads$half_of_one == 'Yes' & !is.na(roads$half_of_one),]$height_width_ratio_excl_zeros <- roads[roads$half_of_one == 'Yes' & !is.na(roads$half_of_one),]$non_zero_means / 
-                                                                                                (roads[roads$half_of_one == 'Yes' & !is.na(roads$half_of_one),]$total_width * 2)
-                                                                                                
+Now plot the non-zero height/width ratios.
+
+```{r plot_the_non_zero_height_width_ratios}
+
 ggplot(roads, aes(y = height_width_ratio, group=type, x=type, fill=type)) + geom_boxplot() + ggtitle('Height to width ratio by street type')
 
 ```
 
-Clean-up some old variables
 
-```{r cleanup}
-rm(end_points, start_points, latlong, ukgrid)
-
-print('saving data')
-
-saveRDS(roads, file = "london_roads_output.rds")
-
-```
-
-
-Need to classify the roads as canyons and directions for modelling. If the height is above 10 metres they wil l be classified as a canyon of a specific direction as such.
+Need to classify the roads as canyons and directions for modelling. If the height is above 10 metres they will be classified as a low canyon, above 20, a  medium canyon, above 30 a high canyon + a specific directio.
 ```{r road_classification}
 roads$classification     <- NA 
 
@@ -411,8 +411,8 @@ Now the South-West to North-East canyon road type (type 4)
 roads[roads$non_zero_means > 10 & roads$non_zero_means <= 20 & !is.na(roads$non_zero_means) & roads$bearing >= 22.5    & roads$bearing  <= 67.5,]$classification   <- '4a'
 roads[roads$non_zero_means > 10 & roads$non_zero_means <= 20 & !is.na(roads$non_zero_means) & roads$bearing <= -112.5  & roads$bearing >= -157.5,]$classification  <- '4a'
 
-roads[roads$non_zero_means > 10 & roads$non_zero_means <= 20 & !is.na(roads$non_zero_means) & roads$bearing >= 22.5    & roads$bearing  <= 67.5,]$classification   <- '4b'
-roads[roads$non_zero_means > 10 & roads$non_zero_means <= 20 & !is.na(roads$non_zero_means) & roads$bearing <= -112.5  & roads$bearing >= -157.5,]$classification  <- '4b'
+roads[roads$non_zero_means > 20 & roads$non_zero_means <= 30 & !is.na(roads$non_zero_means) & roads$bearing >= 22.5    & roads$bearing  <= 67.5,]$classification   <- '4b'
+roads[roads$non_zero_means > 20 & roads$non_zero_means <= 30 & !is.na(roads$non_zero_means) & roads$bearing <= -112.5  & roads$bearing >= -157.5,]$classification  <- '4b'
 
 roads[roads$non_zero_means > 30 & !is.na(roads$non_zero_means) & roads$bearing >= 22.5    & roads$bearing  <= 67.5,]$classification   <- '4c'
 roads[roads$non_zero_means > 30 & !is.na(roads$non_zero_means) & roads$bearing <= -112.5  & roads$bearing >= -157.5,]$classification  <- '4c'
@@ -476,67 +476,14 @@ rm(residential)
 
 Now get the median height and width for each road type
 
-```{r get_summary_width_height}
-
-
-
-```
-
-Roads that are covered by the height raster shown
-
-```{r road_height_and_width_plot}
-values(london_raster)[values(london_raster) == 0] = NA
-
-plot(london_raster, col='red')
-plot(st_geometry(st_transform(roads, crs(london_raster)@projargs)), add=T, color=rgb(0,0,0,alpha=0.1))
-plot(london_raster, col='red', add=T)
-
-```
-
-
 ```{r}
-kable(aggregate(data = roads, cbind(non_zero_means, total_width) ~ classification, FUN=summary))
 
-kable(aggregate(data = roads, cbind(lanes, total_width) ~ type, FUN=mean))
-```
+road_characteristics <- data.frame(aggregate(data = roads, cbind(total_width, non_zero_means) ~ classification, FUN=mean))
 
-
-
-
-
-There are `r nrow(roads)` in the dataset.
-
-```{r}
-##  Create height cuts:
-roads$height_cut <- NA
-
-breaks <- c(0,5,10,20,30,40,50,500)
-
-roads$height_cut <-  cut(roads$non_zero_means, breaks)
-
-ggplot(roads[!is.na(roads$height_cut),], aes(x=total_width)) + geom_histogram(fill='red') + facet_grid(.~height_cut)
+kable(road_characteristics)
 
 ```
 
-If we are going to have more than one type of street canyon, they would be as follows:
-
-Current number of canyons: `r nrow(roads[roads$classification %in% c(1,2,3,4),])`
-
-Change to:
-
-Low canyons `r nrow(roads[roads$non_zero_means > 10 & roads$non_zero_means <= 20 & !is.na(roads$non_zero_means),])`
-
-Medium canyons `r nrow(roads[roads$non_zero_means > 20 & roads$non_zero_means <= 30 & !is.na(roads$non_zero_means),])`
-
-High canyons `r nrow(roads[roads$non_zero_means > 30 & !is.na(roads$non_zero_means),])`
-
-```{r }
-
-nrow(roads[roads$total_width > 10 & roads$total_width < 20 & !is.na(roads$total_width) & roads$non_zero_means >= 10 & roads$non_zero_means <= 20 & !is.na(roads$non_zero_means),]) #low canyon, 4,251
-
-
-nrow(roads[roads$total_width > 10 & roads$total_width < 20 & !is.na(roads$total_width) & roads$non_zero_means > 20 & roads$non_zero_means <= 30 & !is.na(roads$non_zero_means),]) #medium canyon, 1,121
-
-nrow(roads[roads$total_width > 10 & roads$total_width < 20 & !is.na(roads$total_width) & roads$non_zero_means > 30 & !is.na(roads$non_zero_means),]) #high canyons 356
-
+```{r write_out_as_geojson}
+st_write(roads, 'final_roads_london.geojson', delete_dsn = T)
 ```
