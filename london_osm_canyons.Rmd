@@ -487,3 +487,16 @@ kable(road_characteristics)
 ```{r write_out_as_geojson}
 st_write(roads, 'final_roads_london.geojson', delete_dsn = T)
 ```
+
+
+```{r messing_about}
+
+roads$type        <- as.character(roads$type)
+
+roads[roads$type %in% c('primary', 'trunk'),'type']             <- 'primary'
+
+roads[!roads$type %in% c('motorway','primary', 'trunk'),'type'] <- 'other'
+
+
+
+```
