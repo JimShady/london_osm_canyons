@@ -84,6 +84,10 @@ primary           <- opq(bbox = c(min_x, min_y, max_x, max_y)) %>% add_osm_featu
 primary           <- primary$osm_lines[,c('osm_id', 'oneway', 'lanes', 'geometry')]
 primary$type      <- 'primary'
 
+primary_link      <- opq(bbox = c(min_x, min_y, max_x, max_y)) %>% add_osm_feature(key = 'highway', value='primary_link') %>% osmdata_sf()
+primary_link      <- primary_link$osm_lines[,c('osm_id', 'oneway', 'lanes', 'geometry')]
+primary_link$type <- 'primary_link'
+
 secondary         <- opq(bbox = c(min_x, min_y, max_x, max_y)) %>% add_osm_feature(key = 'highway', value='secondary') %>% osmdata_sf()
 secondary         <- secondary$osm_lines[,c('osm_id', 'oneway', 'lanes', 'geometry')]
 secondary$type    <- 'secondary'
@@ -92,9 +96,17 @@ motorway          <- opq(bbox = c(min_x, min_y, max_x, max_y)) %>% add_osm_featu
 motorway          <- motorway$osm_lines[,c('osm_id', 'oneway', 'lanes', 'geometry')]
 motorway$type     <- 'motorway'
 
+motorway_link     <- opq(bbox = c(min_x, min_y, max_x, max_y)) %>% add_osm_feature(key = 'highway', value='motorway_link') %>% osmdata_sf()
+motorway_link     <- motorway_link$osm_lines[,c('osm_id', 'oneway', 'lanes', 'geometry')]
+motorway_link$type <- 'motorway_link'
+
 trunk             <- opq(bbox = c(min_x, min_y, max_x, max_y)) %>% add_osm_feature(key = 'highway', value='trunk') %>% osmdata_sf()
 trunk             <- trunk$osm_lines[,c('osm_id', 'oneway', 'lanes', 'geometry')]
 trunk$type        <- 'trunk'
+
+trunk_link        <- opq(bbox = c(min_x, min_y, max_x, max_y)) %>% add_osm_feature(key = 'highway', value='trunk_link') %>% osmdata_sf()
+trunk_link        <- trunk_link$osm_lines[,c('osm_id', 'oneway', 'lanes', 'geometry')]
+trunk_link$type   <- 'trunk_link'
 
 tertiary          <- opq(bbox = c(min_x, min_y, max_x, max_y)) %>% add_osm_feature(key = 'highway', value='tertiary') %>% osmdata_sf()
 tertiary          <- tertiary$osm_lines[,c('osm_id', 'oneway', 'lanes', 'geometry')]
@@ -104,11 +116,11 @@ tertiary$type     <- 'tertiary'
 Then bind them all into one object
 
 ```{r bind_roads}
-roads             <- rbind(primary, secondary, motorway, trunk, tertiary) 
+roads             <- rbind(primary, primary_link, secondary, motorway, motorway_link, trunk, trunk_link, tertiary) 
 
 roads$osm_id      <- as.numeric(as.character(roads$osm_id))
 
-rm(primary, secondary, motorway, trunk, tertiary)
+rm(primary, primary_link, secondary, motorway, motorway_link, trunk, trunk_link, tertiary)
 
 ```
 
@@ -131,11 +143,14 @@ Where this is missing, we fill in the blanks, using the mean values of that road
 
 ```{r fill_empty_roads}
 
-roads[roads$type == 'primary'     & is.na(roads$lanes),'lanes'] <- round(mean(roads[roads$type == 'primary'     & !is.na(roads$lanes),]$lanes),0)
-roads[roads$type == 'secondary'   & is.na(roads$lanes),'lanes'] <- round(mean(roads[roads$type == 'secondary'   & !is.na(roads$lanes),]$lanes),0)
-roads[roads$type == 'motorway'    & is.na(roads$lanes),'lanes'] <- round(mean(roads[roads$type == 'motorway'    & !is.na(roads$lanes),]$lanes),0)
-roads[roads$type == 'trunk'       & is.na(roads$lanes),'lanes'] <- round(mean(roads[roads$type == 'trunk'       & !is.na(roads$lanes),]$lanes),0)
-roads[roads$type == 'tertiary'    & is.na(roads$lanes),'lanes'] <- round(mean(roads[roads$type == 'tertiary'    & !is.na(roads$lanes),]$lanes),0)
+roads[roads$type == 'primary'       & is.na(roads$lanes),'lanes'] <- round(mean(roads[roads$type == 'primary'       & !is.na(roads$lanes),]$lanes),0)
+roads[roads$type == 'primary_link'  & is.na(roads$lanes),'lanes'] <- round(mean(roads[roads$type == 'primary_link'  & !is.na(roads$lanes),]$lanes),0)
+roads[roads$type == 'secondary'     & is.na(roads$lanes),'lanes'] <- round(mean(roads[roads$type == 'secondary'     & !is.na(roads$lanes),]$lanes),0)
+roads[roads$type == 'motorway'      & is.na(roads$lanes),'lanes'] <- round(mean(roads[roads$type == 'motorway'      & !is.na(roads$lanes),]$lanes),0)
+roads[roads$type == 'motorway_link' & is.na(roads$lanes),'lanes'] <- round(mean(roads[roads$type == 'motorway_link' & !is.na(roads$lanes),]$lanes),0)
+roads[roads$type == 'trunk'         & is.na(roads$lanes),'lanes'] <- round(mean(roads[roads$type == 'trunk'         & !is.na(roads$lanes),]$lanes),0)
+roads[roads$type == 'trunk_link'    & is.na(roads$lanes),'lanes'] <- round(mean(roads[roads$type == 'trunk_link'    & !is.na(roads$lanes),]$lanes),0)
+roads[roads$type == 'tertiary'      & is.na(roads$lanes),'lanes'] <- round(mean(roads[roads$type == 'tertiary'      & !is.na(roads$lanes),]$lanes),0)
 ```
 
 Now, presuming that a lane is 3.15 metres wide, each road width is now calculated and added to the dataset. 
@@ -144,21 +159,23 @@ Now, presuming that a lane is 3.15 metres wide, each road width is now calculate
 roads$width             <- as.numeric(roads$lanes) * 3.15
 ```
 
-OSM splits some roads into two, like Marylebone Road. This is a problem for calculating height to width ratios. So we are going to try and identify these.
+OSM splits some roads into two, like Marylebone Road, and motorways. This is a problem for calculating height to width ratios. So we are going to try and identify these.
 
 ```{r marylebone_issue}
 roads$half_of_one <- NA
 
-roads[roads$oneway == 'yes' & !is.na(roads$oneway) & roads$type == 'trunk' & !is.na(roads$type),'half_of_one'] <- as.character('Yes')
+roads[roads$oneway == 'yes' & !is.na(roads$oneway) & roads$type == 'trunk'           & !is.na(roads$type),'half_of_one'] <- as.character('Yes')
+roads[roads$oneway == 'yes' & !is.na(roads$oneway) & roads$type == 'trunk_link'      & !is.na(roads$type),'half_of_one'] <- as.character('Yes')
+
+roads[roads$oneway == 'yes' & !is.na(roads$oneway) & roads$type == 'motorway'        & !is.na(roads$type),'half_of_one'] <- as.character('Yes')
+roads[roads$oneway == 'yes' & !is.na(roads$oneway) & roads$type == 'motorway_link'   & !is.na(roads$type),'half_of_one'] <- as.character('Yes')
 ```
 
 The road widths by road type are now as below
 
-```{r road_widths_summary}
+```{r road_widths_summary, fig.width=10}
 
-aggregate(width ~ type, data=roads, FUN=summary)
-
-ggplot(roads, aes(y = width, x = type, group=type, fill=type)) + geom_boxplot() + ggtitle('Road widths by road type')
+ggplot(roads, aes(x = width, fill=type)) + geom_histogram(alpha=0.3) + facet_wrap(.~type, scales="free") + ggtitle('Road widths by road type')
 ```
 
 The widest road in the dataset is here
@@ -169,25 +186,46 @@ mapshot(m, file = paste0(getwd(), "/map.png"), remove_controls = c("zoomControl"
 
 ![](map.png)
 
-Pavement width is also added to the roads, depending on what type of road it is, as follows. Presumes 3 metres wide pavement
+Pavement width is also added to the roads, depending on what type of road it is, as follows. Presumes 3 metres wide pavement. For motorways we still add 'pavement' but presume this is hard-shoulder.
 
 ```{r add pavement widths}
 
 roads$pavement_width   <- NA
 
-roads[roads$type == 'primary'   & is.na(roads$half_of_one),  'pavement_width'] <- 6
-roads[roads$type == 'secondary' & is.na(roads$half_of_one),  'pavement_width'] <- 6
-roads[roads$type == 'motorway'  & is.na(roads$half_of_one),  'pavement_width'] <- 0
-roads[roads$type == 'trunk'     & is.na(roads$half_of_one),  'pavement_width'] <- 6
-roads[roads$type == 'tertiary'  & is.na(roads$half_of_one),  'pavement_width'] <- 6
+roads[roads$type == 'primary'        & is.na(roads$half_of_one),  'pavement_width'] <- 6
+roads[roads$type == 'primary_link'   & is.na(roads$half_of_one),  'pavement_width'] <- 6
 
-roads[roads$type == 'primary'   & !is.na(roads$half_of_one) & roads$half_of_one == 'Yes', 'pavement_width'] <- 3
-roads[roads$type == 'secondary' & !is.na(roads$half_of_one) & roads$half_of_one == 'Yes', 'pavement_width'] <- 3
-roads[roads$type == 'motorway'  & !is.na(roads$half_of_one) & roads$half_of_one == 'Yes', 'pavement_width'] <- 0
-roads[roads$type == 'trunk'     & !is.na(roads$half_of_one) & roads$half_of_one == 'Yes', 'pavement_width'] <- 3
-roads[roads$type == 'tertiary'  & !is.na(roads$half_of_one) & roads$half_of_one == 'Yes', 'pavement_width'] <- 3
+roads[roads$type == 'secondary'      & is.na(roads$half_of_one),  'pavement_width'] <- 6
+
+roads[roads$type == 'motorway'       & is.na(roads$half_of_one),  'pavement_width'] <- 6
+roads[roads$type == 'motorway_link'  & is.na(roads$half_of_one),  'pavement_width'] <- 6
+
+roads[roads$type == 'trunk'          & is.na(roads$half_of_one),  'pavement_width'] <- 6
+roads[roads$type == 'trunk_link'     & is.na(roads$half_of_one),  'pavement_width'] <- 6
+
+roads[roads$type == 'tertiary'       & is.na(roads$half_of_one),  'pavement_width'] <- 6
+
+roads[roads$type == 'primary'        & !is.na(roads$half_of_one) & roads$half_of_one == 'Yes', 'pavement_width'] <- 3
+roads[roads$type == 'primary_link'   & !is.na(roads$half_of_one) & roads$half_of_one == 'Yes', 'pavement_width'] <- 3
+
+roads[roads$type == 'secondary'      & !is.na(roads$half_of_one) & roads$half_of_one == 'Yes', 'pavement_width'] <- 3
+
+roads[roads$type == 'motorway'       & !is.na(roads$half_of_one) & roads$half_of_one == 'Yes', 'pavement_width'] <- 3
+roads[roads$type == 'motorway_link'  & !is.na(roads$half_of_one) & roads$half_of_one == 'Yes', 'pavement_width'] <- 3
+
+roads[roads$type == 'trunk'          & !is.na(roads$half_of_one) & roads$half_of_one == 'Yes', 'pavement_width'] <- 3
+roads[roads$type == 'trunk_link'     & !is.na(roads$half_of_one) & roads$half_of_one == 'Yes', 'pavement_width'] <- 3
+
+roads[roads$type == 'tertiary'       & !is.na(roads$half_of_one) & roads$half_of_one == 'Yes', 'pavement_width'] <- 3
 
 roads$total_width <- roads$width + roads$pavement_width
+```
+
+Road widths are now
+
+```{r new_road_widths_summary, fig.width=10}
+
+ggplot(roads, aes(x = total_width, fill=type)) + geom_histogram(alpha=0.3) + facet_wrap(.~type, scales="free") + ggtitle('Road widths by road type')
 ```
 
 Add half central reservation
@@ -198,11 +236,25 @@ roads[roads$half_of_one == 'Yes' & !is.na(roads$half_of_one),]$total_width <- ro
 
 With pavements added the roads width is..
 
-```{r road widths summary with pavements}
+```{r road_widths_summary_with_pavements, fig.width=10}
 
-aggregate(total_width ~ type, data=roads, FUN=summary)
+ggplot(roads, aes(x = total_width, fill=type)) + geom_histogram(alpha=0.3) + facet_wrap(.~type, scales="free") + ggtitle('Road widths by road type')
+```
 
-ggplot(roads, aes(y = total_width, x = type, group=type, fill=type)) + geom_boxplot() + ggtitle('Road widths by road type')
+As a table the road widths 
+
+```{r road_widths_table_summary_2}
+
+table(roads$type, roads$total_width)
+
+```
+
+As a table the road lanes 
+
+```{r road_lanes_table_summary}
+
+table(roads$type, roads$lanes)
+
 ```
 
 The map below shows roads currently in the dataset, coloured by type
@@ -220,6 +272,7 @@ ggplot(roads, aes(colour = type, fill=type)) +
 Remove a few circular roads that are a problem for buffers
 
 ```{r remove problem roads}
+
 roads_to_ignore         <- c(9393,11079,14595,15578)
 roads                   <- roads[-roads_to_ignore,]
 rm(roads_to_ignore)
@@ -234,7 +287,7 @@ roads                   <- st_transform(roads, 27700)
 roads$area              <- st_geometry(st_buffer(roads, dist = 15)) / st_geometry(st_buffer(roads, dist = 10))
 ```
 
-For the roads like Marylebone Road, going to double and add 5 metres to the buffers.
+For the roads like Marylebone Road, going to double the buffer area and add 5 metres to the buffers.
 ```{r special_case}
 roads[!is.na(roads$half_of_one),]$area              <- st_geometry(st_buffer(roads[!is.na(roads$half_of_one),], dist = 15*2+5)) /
                                                        st_geometry(st_buffer(roads[!is.na(roads$half_of_one),], dist = 10*2+5))
@@ -276,7 +329,7 @@ rm(temp_raster, osm_id_to_examine)
 Now extract the data we need from the raster (this takes circa 12 hours)
 
 ```{r extracting_heights}
-start_time <- Sys.time()
+start_time          <- Sys.time()
 
 road_polygons       <- as(roads$area,'Spatial')
 roads$area          <- NULL 
@@ -441,6 +494,14 @@ Haven't been working on them, but think it's time time to add the residential ro
 residential           <- opq(bbox = c(min_x, min_y, max_x, max_y)) %>% add_osm_feature(key = 'highway', value='residential') %>% osmdata_sf()
 residential           <- residential$osm_lines[,c('osm_id', 'oneway', 'lanes', 'geometry')]
 residential$type      <- 'residential'
+
+service               <- opq(bbox = c(min_x, min_y, max_x, max_y)) %>% add_osm_feature(key = 'highway', value='service') %>% osmdata_sf()
+service               <- residential$osm_lines[,c('osm_id', 'oneway', 'lanes', 'geometry')]
+service$type          <- 'service'
+
+unclassified           <- opq(bbox = c(min_x, min_y, max_x, max_y)) %>% add_osm_feature(key = 'highway', value='unclassified') %>% osmdata_sf()
+unclassified           <- residential$osm_lines[,c('osm_id', 'oneway', 'lanes', 'geometry')]
+unclassified$type      <- 'unclassified'
 
 residential$osm_id      <- as.numeric(as.character(residential$osm_id))
 
