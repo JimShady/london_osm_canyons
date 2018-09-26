@@ -488,6 +488,19 @@ roads[roads$non_zero_means > 1 & roads$non_zero_means <= 10 & !is.na(roads$non_z
 
 ```
 
+Now going to classify the remaining roads.
+```{r rest_of_the_roads}
+
+roads[is.na(roads$classification) & roads$type %in% c('motorway', 'motorway_link'),'classification'] <- 5
+
+roads[is.na(roads$classification) & roads$type %in% c('primary', 'primary_link'),'classification'] <- 6
+
+roads[is.na(roads$classification) & roads$type %in% c('secondary', 'tertiary'),'classification'] <- 6
+
+roads[is.na(roads$classification) & roads$type %in% c('trunk', 'trunk_link'),'classification'] <- 6
+
+```
+
 Haven't been working on them, but think it's time time to add the residential roads back in and harmonise them with the main roads data.
 
 ```{r add_residential_roads}
@@ -496,57 +509,62 @@ residential           <- residential$osm_lines[,c('osm_id', 'oneway', 'lanes', '
 residential$type      <- 'residential'
 
 service               <- opq(bbox = c(min_x, min_y, max_x, max_y)) %>% add_osm_feature(key = 'highway', value='service') %>% osmdata_sf()
-service               <- residential$osm_lines[,c('osm_id', 'oneway', 'lanes', 'geometry')]
+service               <- service$osm_lines[,c('osm_id', 'oneway', 'lanes', 'geometry')]
 service$type          <- 'service'
 
 unclassified           <- opq(bbox = c(min_x, min_y, max_x, max_y)) %>% add_osm_feature(key = 'highway', value='unclassified') %>% osmdata_sf()
-unclassified           <- residential$osm_lines[,c('osm_id', 'oneway', 'lanes', 'geometry')]
+unclassified           <- unclassified$osm_lines[,c('osm_id', 'oneway', 'lanes', 'geometry')]
 unclassified$type      <- 'unclassified'
 
-residential$osm_id      <- as.numeric(as.character(residential$osm_id))
+extra_roads            <- rbind(residential, service, unclassified)
+rm(residential, service, unclassified)
 
-residential$lanes       <- as.character(residential$lanes)
-residential             <- residential[!grepl(';', residential$lanes),]
-residential$lanes       <- as.numeric(residential$lanes)
+extra_roads$osm_id      <- as.numeric(as.character(residential$osm_id))
 
-residential[is.na(residential$lanes),'lanes'] <- 2
+extra_roads$lanes       <- as.character(extra_roads$lanes)
+extra_roads             <- extra_roads[!grepl(';', extra_roads$lanes),]
+extra_roads$lanes       <- as.numeric(extra_roads$lanes)
 
-residential$width                           <- residential$lanes * 3.15
-residential$half_of_one                     <- as.character(NA)
-residential$pavement_width                  <- as.numeric(6)
-residential$total_width                     <- as.numeric(residential$width + residential$pavement_width)
-residential$weighted_mean                   <- as.numeric(NA)
-residential$cell_count                      <- as.integer(NA)
-residential$zero_cells                      <- as.integer(NA)
-residential$bearing                         <- as.numeric(NA)
-residential$height_width_ratio              <- as.numeric(NA)
-residential$max_height                      <- as.numeric(NA)
-residential$non_zero_means                  <- as.numeric(NA)
-residential$height_width_ratio_excl_zeros   <- as.numeric(NA)
-residential$classification                  <- as.numeric(6)
+extra_roads[is.na(extra_roads$lanes),'lanes'] <- 2
+
+extra_roads$width                           <- extra_roads$lanes * 3.15
+extra_roads$half_of_one                     <- as.character(NA)
+extra_roads$pavement_width                  <- as.numeric(6)
+extra_roads$total_width                     <- as.numeric(extra_roads$width + extra_roads$pavement_width)
+extra_roads$weighted_mean                   <- as.numeric(NA)
+extra_roads$cell_count                      <- as.integer(NA)
+extra_roads$zero_cells                      <- as.integer(NA)
+extra_roads$bearing                         <- as.numeric(NA)
+extra_roads$height_width_ratio              <- as.numeric(NA)
+extra_roads$max_height                      <- as.numeric(NA)
+extra_roads$non_zero_means                  <- as.numeric(NA)
+extra_roads$height_width_ratio_excl_zeros   <- as.numeric(NA)
+extra_roads$classification                  <- as.numeric(6)
 
 col_order <- names(roads)
 
-residential <- residential[,col_order]
+extra_roads <- extra_roads[,col_order]
 
-roads <- rbind(roads, residential)
+roads <- rbind(roads, extra_roads)
 
-rm(residential)
+rm(extra_roads)
 
 ```
 
-Now get the median height and width for each road type
+Want to keep file size down, so round some things up
 
 ```{r}
 
-road_characteristics <- data.frame(aggregate(data = roads, cbind(total_width, non_zero_means) ~ classification, FUN=mean))
-
-kable(road_characteristics)
-
+roads$non_zero_means <- round(roads$non_zero_means,1)
+roads$oneway         <- as.character(roads$oneway)
+roads[roads$oneway == 'yes' & !is.na(roads$oneway),'oneway'] <- 'Y'
+roads$oneway          <- as.factor(roads$oneway)
+roads$lanes           <- as.factor(roads$lanes)
 ```
 
 ```{r write_out_as_geojson}
-st_write(roads, 'final_roads_london.geojson', delete_dsn = T)
+st_write(roads[,c('osm_id', 'oneway', 'lanes', 'type', 'half_of_one', 'total_width', "non_zero_means", "classification")], 
+         dsn='final_roads_london.gpkg', delete_dsn = T)
 ```
 
 
