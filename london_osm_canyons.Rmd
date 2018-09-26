@@ -328,7 +328,7 @@ rm(temp_raster, osm_id_to_examine)
 
 Now extract the data we need from the raster (this takes circa 12 hours)
 
-```{r extracting_heights}
+```{r extracting_heights, results="hide"}
 start_time          <- Sys.time()
 
 road_polygons       <- as(roads$area,'Spatial')
