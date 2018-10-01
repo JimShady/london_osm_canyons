@@ -45,12 +45,16 @@ This raster is then imported.
 ```{r get building rasters}
 
 london_raster <- raster('buildings_raster/UK001L2_LONDON_UA2012_DHM/UK001L2_LONDON_UA2012_DHM.tif')
+```
+
+```{r}
 plot(london_raster)
 title('Raster file of London Building heights')
+```
 
+```{r}
 plot(london_raster, xlim = c(3615000, 3625000), ylim = c(3200000, 3205000))
 title('Raster file of London Building heights (zoomed)')
-
 ```
 
 ### Import OSM roads data
@@ -563,7 +567,7 @@ roads$lanes           <- as.factor(roads$lanes)
 ```
 
 ```{r write_out_as_geojson}
-st_write(roads[,c('osm_id', 'oneway', 'lanes', 'type', 'half_of_one', 'total_width', "non_zero_means", "classification")], 
+st_write(roads[,c('osm_id', 'oneway', 'lanes', 'type', 'half_of_one', 'width', 'total_width', "non_zero_means", "classification")], 
          dsn='final_roads_london.gpkg', delete_dsn = T)
 ```
 
