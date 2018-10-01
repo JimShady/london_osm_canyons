@@ -11,7 +11,7 @@ knit: (function(inputFile, encoding) {
 ---
 
 ### Loading libraries
-```{r load libraries, message=F, warning=F}
+```{r load libraries, message=F, warning=F, include=F}
 rm(list=ls(all=TRUE)) 
 
 library(devtools)
@@ -125,6 +125,16 @@ roads             <- rbind(primary, primary_link, secondary, motorway, motorway_
 roads$osm_id      <- as.numeric(as.character(roads$osm_id))
 
 rm(primary, primary_link, secondary, motorway, motorway_link, trunk, trunk_link, tertiary)
+
+```
+
+Due to the user-generated nature of OSM, need to remove duplicates in space. Also remove duplicated osm_ids.
+
+```{r remove_duplicates}
+
+roads <- roads[!duplicated(roads$geometry),]
+
+roads <- roads[!duplicated(roads$osm_id),]
 
 ```
 
@@ -564,6 +574,16 @@ roads$oneway         <- as.character(roads$oneway)
 roads[roads$oneway == 'yes' & !is.na(roads$oneway),'oneway'] <- 'Y'
 roads$oneway          <- as.factor(roads$oneway)
 roads$lanes           <- as.factor(roads$lanes)
+```
+
+Another round of removing duplicates.
+
+```{r remove_duplicates}
+
+roads <- roads[!duplicated(roads$geometry),]
+
+roads <- roads[!duplicated(roads$osm_id),]
+
 ```
 
 ```{r write_out_as_geojson}
