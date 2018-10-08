@@ -565,17 +565,6 @@ rm(extra_roads)
 
 ```
 
-Want to keep file size down, so round some things up
-
-```{r}
-
-roads$non_zero_means <- round(roads$non_zero_means,1)
-roads$oneway         <- as.character(roads$oneway)
-roads[roads$oneway == 'yes' & !is.na(roads$oneway),'oneway'] <- 'Y'
-roads$oneway          <- as.factor(roads$oneway)
-roads$lanes           <- as.factor(roads$lanes)
-```
-
 Another round of removing duplicates.
 
 ```{r remove_duplicates}
@@ -587,19 +576,5 @@ roads <- roads[!duplicated(roads$osm_id),]
 ```
 
 ```{r write_out_as_geojson}
-st_write(roads[,c('osm_id', 'oneway', 'lanes', 'type', 'half_of_one', 'width', 'total_width', "non_zero_means", "classification")], 
-         dsn='final_roads_london.gpkg', delete_dsn = T)
-```
-
-
-```{r messing_about}
-
-#roads$type        <- as.character(roads$type)
-
-#roads[roads$type %in% c('primary', 'trunk'),'type']             <- 'primary'
-
-#roads[!roads$type %in% c('motorway','primary', 'trunk'),'type'] <- 'other'
-
-
-
+st_write(roads, dsn='final_roads_london.gpkg', delete_dsn = T)
 ```
