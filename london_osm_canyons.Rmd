@@ -31,6 +31,8 @@ library(knitr)
 suppressMessages(library(mapview))
 library(RCurl)
 library(stplanr)
+library(reshape2)
+library(dplyr)
 ```
 
 
@@ -348,9 +350,9 @@ start_time          <- Sys.time()
 road_polygons       <- as(roads$area,'Spatial')
 roads$area          <- NULL 
 
-roads$weighted_mean <- NA
-roads$cell_count    <- NA
-roads$zero_cells    <- NA
+#roads$weighted_mean <- NA
+#roads$cell_count    <- NA
+#roads$zero_cells    <- NA
 
 print('about extracting data')
 
@@ -358,13 +360,13 @@ extracted <- extract(london_raster, road_polygons, weights=T, na.rm=F)
 
 print('extracted data, using sapply to put into the roads file')
 
-roads$weighted_mean                           <- sapply(extracted, FUN = function(x)(sum(x[,1] * x[,2])))
-roads$cell_count                              <- sapply(extracted, FUN = function(x)(length(x[,1])))
-roads$zero_cells                              <- sapply(extracted, FUN = function(x)(sum(x[,1]==0)))
-roads$max_height                              <- sapply(extracted, FUN = function(x)(max(x[,1], na.rm=T)))
-roads$non_zero_means                          <- sapply(extracted, FUN = function(x)(sum(x[x[,1]>0,1] * (x[x[,1]>0,2] / sum(x[x[,1]>0,2])))))
+#roads$weighted_mean                           <- sapply(extracted, FUN = function(x)(sum(x[,1] * x[,2])))
+#roads$cell_count                              <- sapply(extracted, FUN = function(x)(length(x[,1])))
+#roads$zero_cells                              <- sapply(extracted, FUN = function(x)(sum(x[,1]==0)))
+#roads$max_height                              <- sapply(extracted, FUN = function(x)(max(x[,1], na.rm=T)))
+roads$canyon_height                            <- sapply(extracted, FUN = function(x)(sum(x[x[,1]>0,1] * (x[x[,1]>0,2] / sum(x[x[,1]>0,2])))))
 
-roads[roads$max_height == '-Inf',]$max_height <- NA
+#roads[roads$max_height == '-Inf',]$max_height <- NA
 
 print('done')
 
@@ -379,16 +381,6 @@ print(end_time - start_time)
 rm(start_time, end_time)
 ```
 
-Now need to get the bearing of each road from start point to end point
-
-```{r calculate bearing}
-
-roads$bearing             <- line_bearing(roads)
-
-hist(roads$bearing)
-
-```
-
 Where the road is 'half of one', double the width of the road
 
 ```{r double_width_for_half_roads}
@@ -398,13 +390,13 @@ roads[roads$half_of_one == 'Yes' & !is.na(roads$half_of_one),]$total_width <- ro
 Add another column for height to width ratio
 
 ```{r height and width ratio}
-roads$height_width_ratio <- roads$weighted_mean / roads$total_width
+#roads$height_width_ratio <- roads$weighted_mean / roads$total_width
 ```
 
 Add another height widhth ratio column for when using the non-zero height from the raster
 
 ```{r add_another_height_width_ratio}
-roads$height_width_ratio_excl_zeros <- roads$non_zero_means / roads$total_width
+roads$height_width_ratio <- roads$canyon_height / roads$total_width
 ```
 
 Now plot the non-zero height/width ratios.
@@ -415,103 +407,14 @@ ggplot(roads, aes(y = height_width_ratio, group=type, x=type, fill=type)) + geom
 
 ```
 
-
-Need to classify the roads as canyons and directions for modelling. If the height is above 10 metres they will be classified as a low canyon, above 20, a  medium canyon, above 30 a high canyon + a specific directio.
+Need to classify the roads as canyons and directions for modelling. Use the street canyon categories Sean has made kernels for.
 ```{r road_classification}
-roads$classification     <- NA 
+road_types               <- read.csv('model_street_types.csv')
 
-```
+road_types$orientation   <- as.character(road_types$orientation)
 
-First the North-South canyon road type (type 1)
-
-```{r north_south}
-
-roads[roads$non_zero_means > 10 & roads$non_zero_means <= 20 & !is.na(roads$non_zero_means) & roads$bearing >= -22.5   & roads$bearing <= 22.5,]$classification    <- '1a'
-roads[roads$non_zero_means > 10 & roads$non_zero_means <= 20 & !is.na(roads$non_zero_means) & roads$bearing >= 157.5   & roads$bearing <= 180,]$classification     <- '1a'
-roads[roads$non_zero_means > 10 & roads$non_zero_means <= 20 & !is.na(roads$non_zero_means) & roads$bearing <= -157.5  & roads$bearing > -180,]$classification     <- '1a'
-
-
-roads[roads$non_zero_means > 20 & roads$non_zero_means <= 30 & !is.na(roads$non_zero_means) & roads$bearing >= -22.5   & roads$bearing <= 22.5,]$classification  <- '1b'
-roads[roads$non_zero_means > 20 & roads$non_zero_means <= 30 & !is.na(roads$non_zero_means) & roads$bearing >= 157.5   & roads$bearing <= 180,]$classification   <- '1b'
-roads[roads$non_zero_means > 20 & roads$non_zero_means <= 30 & !is.na(roads$non_zero_means) & roads$bearing <= -157.5  & roads$bearing > -180,]$classification   <- '1b'
-
-roads[roads$non_zero_means > 30 & !is.na(roads$non_zero_means) & roads$bearing >= -22.5   & roads$bearing <= 22.5,]$classification  <- '1c'
-roads[roads$non_zero_means > 30 & !is.na(roads$non_zero_means) & roads$bearing >= 157.5   & roads$bearing <= 180,]$classification   <- '1c'
-roads[roads$non_zero_means > 30 & !is.na(roads$non_zero_means) & roads$bearing <= -157.5  & roads$bearing > -180,]$classification   <- '1c'
-
-
-```
-
-Now the East-West canyon road type (type 2)
-
-```{r east_west}
-roads[roads$non_zero_means > 10 & roads$non_zero_means <= 20 & !is.na(roads$non_zero_means) & roads$bearing >= 67.5    & roads$bearing <= 112.5,]$classification <- '2a'
-roads[roads$non_zero_means > 10 & roads$non_zero_means <= 20 & !is.na(roads$non_zero_means) & roads$bearing >= -112.5  & roads$bearing <= -67.5,]$classification <- '2a'
-
-roads[roads$non_zero_means > 20 & roads$non_zero_means <= 30 & !is.na(roads$non_zero_means) & roads$bearing >= 67.5    & roads$bearing <= 112.5,]$classification <- '2b'
-roads[roads$non_zero_means > 20 & roads$non_zero_means <= 30 & !is.na(roads$non_zero_means) & roads$bearing >= -112.5  & roads$bearing <= -67.5,]$classification <- '2b'
-
-roads[roads$non_zero_means > 30 & !is.na(roads$non_zero_means) & roads$bearing >= 67.5    & roads$bearing <= 112.5,]$classification <- '2c'
-roads[roads$non_zero_means > 30 & !is.na(roads$non_zero_means) & roads$bearing >= -112.5  & roads$bearing <= -67.5,]$classification <- '2c'
-
-```
-
-Now the South-East to North-West canyon road type (type 3)
-
-```{r south_east_north_west}
-
-roads[roads$non_zero_means > 10 & roads$non_zero_means <= 20 & !is.na(roads$non_zero_means) & roads$bearing >= 112.5    & roads$bearing <= 157.5,]$classification  <- '3a'
-roads[roads$non_zero_means > 10 & roads$non_zero_means <= 20 & !is.na(roads$non_zero_means) & roads$bearing <= -22.5  & roads$bearing   >= -67.5,]$classification  <- '3a'
-
-roads[roads$non_zero_means > 20 & roads$non_zero_means <= 30 & !is.na(roads$non_zero_means) & roads$bearing >= 112.5    & roads$bearing <= 157.5,]$classification  <- '3b'
-roads[roads$non_zero_means > 20 & roads$non_zero_means <= 30 & !is.na(roads$non_zero_means) & roads$bearing <= -22.5  & roads$bearing   >= -67.5,]$classification  <- '3b'
-
-roads[roads$non_zero_means > 30  & !is.na(roads$non_zero_means) & roads$bearing >= 112.5    & roads$bearing <= 157.5,]$classification  <- '3c'
-roads[roads$non_zero_means > 30  & !is.na(roads$non_zero_means) & roads$bearing <= -22.5  & roads$bearing   >= -67.5,]$classification  <- '3c'
-
-```
-
-Now the South-West to North-East canyon road type (type 4)
-
-```{r south_west_north_east}
-
-roads[roads$non_zero_means > 10 & roads$non_zero_means <= 20 & !is.na(roads$non_zero_means) & roads$bearing >= 22.5    & roads$bearing  <= 67.5,]$classification   <- '4a'
-roads[roads$non_zero_means > 10 & roads$non_zero_means <= 20 & !is.na(roads$non_zero_means) & roads$bearing <= -112.5  & roads$bearing >= -157.5,]$classification  <- '4a'
-
-roads[roads$non_zero_means > 20 & roads$non_zero_means <= 30 & !is.na(roads$non_zero_means) & roads$bearing >= 22.5    & roads$bearing  <= 67.5,]$classification   <- '4b'
-roads[roads$non_zero_means > 20 & roads$non_zero_means <= 30 & !is.na(roads$non_zero_means) & roads$bearing <= -112.5  & roads$bearing >= -157.5,]$classification  <- '4b'
-
-roads[roads$non_zero_means > 30 & !is.na(roads$non_zero_means) & roads$bearing >= 22.5    & roads$bearing  <= 67.5,]$classification   <- '4c'
-roads[roads$non_zero_means > 30 & !is.na(roads$non_zero_means) & roads$bearing <= -112.5  & roads$bearing >= -157.5,]$classification  <- '4c'
-
-```
-
-Now non-street-canyons that are open roads are classified as type 5. There are `r nrow(roads[roads$non_zero_means <= 1 & !is.na(roads$non_zero_means) ,])` of these.
-
-```{r open_road}
-
-roads[roads$non_zero_means <= 1 & !is.na(roads$non_zero_means) ,]$classification   <- 5 #open
-
-```
-
-Now non-street-canyons that are typical roads are classified as type 6. There are `r nrow(roads[roads$non_zero_means > 1 & roads$non_zero_means <= 10 & !is.na(roads$non_zero_means) ,])` of these.
-
-```{r typical}
-
-roads[roads$non_zero_means > 1 & roads$non_zero_means <= 10 & !is.na(roads$non_zero_means) ,]$classification    <- 6 #typical
-
-```
-
-Now going to classify the remaining roads.
-```{r rest_of_the_roads}
-
-roads[is.na(roads$classification) & roads$type %in% c('motorway', 'motorway_link'),'classification'] <- 5
-
-roads[is.na(roads$classification) & roads$type %in% c('primary', 'primary_link'),'classification'] <- 6
-
-roads[is.na(roads$classification) & roads$type %in% c('secondary', 'tertiary'),'classification'] <- 6
-
-roads[is.na(roads$classification) & roads$type %in% c('trunk', 'trunk_link'),'classification'] <- 6
+road_types$width_cat     <- paste0(road_types$min_width, '-', road_types$max_width)
+road_types$height_cat    <- paste0(road_types$min_height, '-', road_types$max_height)
 
 ```
 
@@ -533,7 +436,7 @@ unclassified$type      <- 'unclassified'
 extra_roads            <- rbind(residential, service, unclassified)
 rm(residential, service, unclassified)
 
-extra_roads$osm_id      <- as.numeric(as.character(residential$osm_id))
+extra_roads$osm_id      <- as.numeric(as.character(extra_roads$osm_id))
 
 extra_roads$lanes       <- as.character(extra_roads$lanes)
 extra_roads             <- extra_roads[!grepl(';', extra_roads$lanes),]
@@ -542,18 +445,19 @@ extra_roads$lanes       <- as.numeric(extra_roads$lanes)
 extra_roads[is.na(extra_roads$lanes),'lanes'] <- 2
 
 extra_roads$width                           <- extra_roads$lanes * 3.15
-extra_roads$half_of_one                     <- as.character(NA)
+extra_roads$half_of_one                     <- as.factor(NA)
 extra_roads$pavement_width                  <- as.numeric(6)
 extra_roads$total_width                     <- as.numeric(extra_roads$width + extra_roads$pavement_width)
-extra_roads$weighted_mean                   <- as.numeric(NA)
-extra_roads$cell_count                      <- as.integer(NA)
-extra_roads$zero_cells                      <- as.integer(NA)
+extra_roads$type                            <- as.factor(extra_roads$type)
+
+#extra_roads$weighted_mean                  <- as.numeric(NA)
+#extra_roads$cell_count                     <- as.integer(NA)
+#extra_roads$zero_cells                     <- as.integer(NA)
 extra_roads$bearing                         <- as.numeric(NA)
+#extra_roads$height_width_ratio             <- as.numeric(NA)
+#extra_roads$max_height                     <- as.numeric(NA)
+extra_roads$canyon_height                   <- as.numeric(NA)
 extra_roads$height_width_ratio              <- as.numeric(NA)
-extra_roads$max_height                      <- as.numeric(NA)
-extra_roads$non_zero_means                  <- as.numeric(NA)
-extra_roads$height_width_ratio_excl_zeros   <- as.numeric(NA)
-extra_roads$classification                  <- as.numeric(6)
 
 col_order <- names(roads)
 
@@ -565,7 +469,80 @@ rm(extra_roads)
 
 ```
 
-Another round of removing duplicates.
+Now need to get the bearing of each road from start point to end point
+
+```{r calculate bearing}
+
+roads$bearing             <- line_bearing(roads)
+
+#hist(roads$bearing)
+
+#roads <- st_read('roads_after_height_extraction.geojson')
+```
+
+Add orientations
+
+```{r categorise_orientations}
+roads$orientation_classification <- NA
+
+roads[roads$bearing >= -22.5   & roads$bearing <= 22.5,]$orientation_classification   <- 'NS'
+roads[roads$bearing >= 157.5   & roads$bearing <= 180, ]$orientation_classification   <- 'NS'
+roads[roads$bearing <= -157.5  & roads$bearing > -180, ]$orientation_classification   <- 'NS'
+
+roads[roads$bearing >= 67.5    & roads$bearing <= 112.5,]$orientation_classification  <- 'EW'
+roads[roads$bearing >= -112.5  & roads$bearing <= -67.5,]$orientation_classification  <- 'EW'
+
+roads[roads$bearing >= 112.5   & roads$bearing <= 157.5,]$orientation_classification  <- 'SENW'
+roads[roads$bearing <= -22.5   & roads$bearing >= -67.5,]$orientation_classification  <- 'SENW'
+
+roads[roads$bearing >= 22.5    & roads$bearing <= 67.5,]$orientation_classification   <- 'SWNE'
+roads[roads$bearing <= -112.5  & roads$bearing >= -157.5,]$orientation_classification <- 'SWNE'
+
+```
+
+Categorise our heights and widths
+```{r}
+road_height_banding <- unique(c(road_types$min_height, road_types$max_height))
+road_width_banding  <- unique(c(road_types$min_width, road_types$max_width))
+
+roads$height_cat   <- cut(roads$canyon_height, road_height_banding)
+roads$height_cat   <- as.character(roads$height_cat)
+
+roads$width_cat   <- cut(roads$total_width, road_width_banding)
+roads$width_cat   <- as.character(roads$width_cat)
+
+roads$height_cat <- gsub("(", "",  roads$height_cat, fixed=T)
+roads$height_cat <- gsub("]", "",  roads$height_cat, fixed=T)
+roads$height_cat <- gsub(",", "-", roads$height_cat, fixed=T)
+
+roads$width_cat <- gsub("(", "",  roads$width_cat, fixed=T)
+roads$width_cat <- gsub("]", "",  roads$width_cat, fixed=T)
+roads$width_cat <- gsub(",", "-", roads$width_cat, fixed=T)
+```
+
+Add a road type type depending on orientation, height category, and width category
+
+```{r join_street_canyon_types}
+
+roads <- left_join(roads, road_types, by = c("orientation_classification" = "orientation", "height_cat" = "height_cat", "width_cat" = "width_cat"), suffix = c('x','y'))
+
+rm(road_types, road_height_banding, road_width_banding)
+
+```
+
+We have some roads remaining that are not classified. Do these manually as below.
+
+```{r rest_of_the_roads}
+
+# Motorway as open road.
+roads[is.na(roads$road_type) & roads$type %in% c('motorway', 'motorway_link'),'road_type'] <- 73
+
+# Rest as typical
+roads[is.na(roads$road_type),'road_type'] <- 74
+
+```
+
+Remove duplicates.
 
 ```{r remove_duplicates}
 
@@ -577,4 +554,48 @@ roads <- roads[!duplicated(roads$osm_id),]
 
 ```{r write_out_as_geojson}
 st_write(roads, dsn='final_roads_london.gpkg', delete_dsn = T)
+```
+
+Now just for London look to join our new classifications to the existing roads using a link file from Andrew Beddows.
+
+```{r join}
+osm_to_dotref <- read.csv('osmToDotRef.csv')
+
+osm_to_dotref <- osm_to_dotref[osm_to_dotref$osm_id != osm_to_dotref$DotRef & osm_to_dotref$DotRef_Lts == 'DotRef',]
+
+osm_to_dotref <- osm_to_dotref[,c('osm_id', 'DotRef')]
+
+roads         <- merge(roads, osm_to_dotref, by.x = 'osm_id', by.y = 'osm_id', all.x=T)
+
+dotref_roads  <- roads[!is.na(roads$DotRef),c('DotRef', 'road_type')] # bearing could be road length
+
+dotref_roads <- st_transform(dotref_roads, 27700)
+
+dotref_roads$length <- as.numeric(st_length(dotref_roads$geometry))
+
+dotref_roads$geometry <- NULL
+
+rm(osm_to_dotref)
+
+dotref_roads$weight <- dotref_roads$road_type * dotref_roads$length
+
+sum_of_weights_per_dotref <- aggregate(data=dotref_roads, weight ~ DotRef, FUN=sum)
+
+dotref_roads <- merge(dotref_roads, sum_of_weights_per_dotref, by.x = 'DotRef', by.y = 'DotRef')
+
+dotref_roads$new_road_type <- dotref_roads$weight.x / dotref_roads$weight.y
+
+dotref_roads$new_road_type <- dotref_roads$new_road_type * dotref_roads$road_type
+
+dotref_roads <- aggregate(data=dotref_roads, new_road_type ~ DotRef, FUN=sum)
+
+dotref_roads$new_road_type <- round(dotref_roads$new_road_type, 0)
+
+# Now import Gregor file and update with new types
+
+dotref_points <- read.csv('Oscar_DOT_Toid_10m.csv')
+
+dotref_points <- merge(dotref_points, dotref_roads, by.x = 'Dot_ref', by.y = 'DotRef', all.x=T)
+
+write.csv(dotref_points, 'Oscar_DOT_Toid_10m_V2.csv', row.names = F)
 ```
