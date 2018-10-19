@@ -33,6 +33,8 @@ library(RCurl)
 library(stplanr)
 library(reshape2)
 library(dplyr)
+library(snow)
+library(snowfall)
 ```
 
 
@@ -300,13 +302,13 @@ Make the buffers around the roads
 ```{r make road buffers}
 roads                   <- st_transform(roads, 27700)
 
-roads$area              <- st_geometry(st_buffer(roads, dist = 15)) / st_geometry(st_buffer(roads, dist = 10))
+roads$area              <- st_geometry(st_buffer(roads, dist = 20)) / st_geometry(st_buffer(roads, dist = 15))
 ```
 
 For the roads like Marylebone Road, going to double the buffer area and add 5 metres to the buffers.
 ```{r special_case}
-roads[!is.na(roads$half_of_one),]$area              <- st_geometry(st_buffer(roads[!is.na(roads$half_of_one),], dist = 15*2+5)) /
-                                                       st_geometry(st_buffer(roads[!is.na(roads$half_of_one),], dist = 10*2+5))
+roads[!is.na(roads$half_of_one),]$area              <- st_geometry(st_buffer(roads[!is.na(roads$half_of_one),], dist = 20*2+5)) /
+                                                       st_geometry(st_buffer(roads[!is.na(roads$half_of_one),], dist = 15*2+5))
 ```
 
 Transform the buffers to the same CRS as the raster we're going to extract from.
@@ -350,24 +352,23 @@ start_time          <- Sys.time()
 road_polygons       <- as(roads$area,'Spatial')
 roads$area          <- NULL 
 
-#roads$weighted_mean <- NA
-#roads$cell_count    <- NA
-#roads$zero_cells    <- NA
-
 print('about extracting data')
 
-extracted <- extract(london_raster, road_polygons, weights=T, na.rm=F)
+sfInit(parallel=TRUE, cpus=parallel:::detectCores()-1)
+sfLibrary(raster)
+sfLibrary(sp)
+start_time          <- Sys.time()
+extracted <- extract(london_raster, road_polygons, na.rm=T)
+
+end_time <- Sys.time()
+sfStop()
+print(end_time - start_time)
 
 print('extracted data, using sapply to put into the roads file')
 
-#roads$weighted_mean                           <- sapply(extracted, FUN = function(x)(sum(x[,1] * x[,2])))
-#roads$cell_count                              <- sapply(extracted, FUN = function(x)(length(x[,1])))
-#roads$zero_cells                              <- sapply(extracted, FUN = function(x)(sum(x[,1]==0)))
-#roads$max_height                              <- sapply(extracted, FUN = function(x)(max(x[,1], na.rm=T)))
-roads$canyon_height                            <- sapply(extracted, FUN = function(x)(sum(x[x[,1]>0,1] * (x[x[,1]>0,2] / sum(x[x[,1]>0,2])))))
-
-#roads[roads$max_height == '-Inf',]$max_height <- NA
-
+# Check this next bit doesn't insert a list to the data framne. might need to unlist.
+roads$canyon_height                                  <- suppressWarnings(lapply(extracted, max))
+roads[roads$canyon_height == '-Inf','canyon_height'] <- NA
 print('done')
 
 roads$geometry      <- st_transform(roads$geometry, 4326)
@@ -379,6 +380,8 @@ end_time <- Sys.time()
 print(end_time - start_time)
 
 rm(start_time, end_time)
+
+st_write(roads, 'roads_after_height_extraction.geojson', delete_dsn = T)
 ```
 
 Where the road is 'half of one', double the width of the road
@@ -396,7 +399,7 @@ Add another column for height to width ratio
 Add another height widhth ratio column for when using the non-zero height from the raster
 
 ```{r add_another_height_width_ratio}
-roads$height_width_ratio <- roads$canyon_height / roads$total_width
+#roads$height_width_ratio <- roads$canyon_height / roads$total_width
 ```
 
 Now plot the non-zero height/width ratios.
@@ -416,6 +419,17 @@ road_types$orientation   <- as.character(road_types$orientation)
 road_types$width_cat     <- paste0(road_types$min_width, '-', road_types$max_width)
 road_types$height_cat    <- paste0(road_types$min_height, '-', road_types$max_height)
 
+```
+
+Now need to get the bearing of each road from start point to end point
+
+```{r calculate bearing}
+roads                     <- st_transform(roads,4326)
+roads$bearing             <- line_bearing(roads)
+
+#hist(roads$bearing)
+
+#roads <- st_read('roads_after_height_extraction.geojson')
 ```
 
 Haven't been working on them, but think it's time time to add the residential roads back in and harmonise them with the main roads data.
@@ -457,7 +471,7 @@ extra_roads$bearing                         <- as.numeric(NA)
 #extra_roads$height_width_ratio             <- as.numeric(NA)
 #extra_roads$max_height                     <- as.numeric(NA)
 extra_roads$canyon_height                   <- as.numeric(NA)
-extra_roads$height_width_ratio              <- as.numeric(NA)
+#extra_roads$height_width_ratio              <- as.numeric(NA)
 
 col_order <- names(roads)
 
@@ -469,34 +483,23 @@ rm(extra_roads)
 
 ```
 
-Now need to get the bearing of each road from start point to end point
-
-```{r calculate bearing}
-
-roads$bearing             <- line_bearing(roads)
-
-#hist(roads$bearing)
-
-#roads <- st_read('roads_after_height_extraction.geojson')
-```
-
 Add orientations
 
 ```{r categorise_orientations}
 roads$orientation_classification <- NA
 
-roads[roads$bearing >= -22.5   & roads$bearing <= 22.5,]$orientation_classification   <- 'NS'
-roads[roads$bearing >= 157.5   & roads$bearing <= 180, ]$orientation_classification   <- 'NS'
-roads[roads$bearing <= -157.5  & roads$bearing > -180, ]$orientation_classification   <- 'NS'
+roads[roads$bearing >= -22.5   & roads$bearing <= 22.5 & !is.na(roads$bearing),]$orientation_classification   <- 'NS'
+roads[roads$bearing >= 157.5   & roads$bearing <= 180 & !is.na(roads$bearing), ]$orientation_classification   <- 'NS'
+roads[roads$bearing <= -157.5  & roads$bearing > -180 & !is.na(roads$bearing), ]$orientation_classification   <- 'NS'
 
-roads[roads$bearing >= 67.5    & roads$bearing <= 112.5,]$orientation_classification  <- 'EW'
-roads[roads$bearing >= -112.5  & roads$bearing <= -67.5,]$orientation_classification  <- 'EW'
+roads[roads$bearing >= 67.5    & roads$bearing <= 112.5 & !is.na(roads$bearing),]$orientation_classification  <- 'EW'
+roads[roads$bearing >= -112.5  & roads$bearing <= -67.5 & !is.na(roads$bearing),]$orientation_classification  <- 'EW'
 
-roads[roads$bearing >= 112.5   & roads$bearing <= 157.5,]$orientation_classification  <- 'SENW'
-roads[roads$bearing <= -22.5   & roads$bearing >= -67.5,]$orientation_classification  <- 'SENW'
+roads[roads$bearing >= 112.5   & roads$bearing <= 157.5 & !is.na(roads$bearing),]$orientation_classification  <- 'SENW'
+roads[roads$bearing <= -22.5   & roads$bearing >= -67.5 & !is.na(roads$bearing),]$orientation_classification  <- 'SENW'
 
-roads[roads$bearing >= 22.5    & roads$bearing <= 67.5,]$orientation_classification   <- 'SWNE'
-roads[roads$bearing <= -112.5  & roads$bearing >= -157.5,]$orientation_classification <- 'SWNE'
+roads[roads$bearing >= 22.5    & roads$bearing <= 67.5 & !is.na(roads$bearing),]$orientation_classification   <- 'SWNE'
+roads[roads$bearing <= -112.5  & roads$bearing >= -157.5 & !is.na(roads$bearing),]$orientation_classification <- 'SWNE'
 
 ```
 
@@ -533,6 +536,7 @@ rm(road_types, road_height_banding, road_width_banding)
 We have some roads remaining that are not classified. Do these manually as below.
 
 ```{r rest_of_the_roads}
+
 
 # Motorway as open road.
 roads[is.na(roads$road_type) & roads$type %in% c('motorway', 'motorway_link'),'road_type'] <- 73
@@ -577,25 +581,25 @@ dotref_roads$geometry <- NULL
 
 rm(osm_to_dotref)
 
-dotref_roads$weight <- dotref_roads$road_type * dotref_roads$length
+sum_of_weights_per_dotref <- aggregate(data=dotref_roads, length ~ DotRef+road_type, FUN=sum)
 
-sum_of_weights_per_dotref <- aggregate(data=dotref_roads, weight ~ DotRef, FUN=sum)
+sum_of_weights_per_dotref <- sum_of_weights_per_dotref %>% arrange(DotRef,desc(length))
 
-dotref_roads <- merge(dotref_roads, sum_of_weights_per_dotref, by.x = 'DotRef', by.y = 'DotRef')
-
-dotref_roads$new_road_type <- dotref_roads$weight.x / dotref_roads$weight.y
-
-dotref_roads$new_road_type <- dotref_roads$new_road_type * dotref_roads$road_type
-
-dotref_roads <- aggregate(data=dotref_roads, new_road_type ~ DotRef, FUN=sum)
-
-dotref_roads$new_road_type <- round(dotref_roads$new_road_type, 0)
+sum_of_weights_per_dotref <- sum_of_weights_per_dotref %>% group_by(DotRef) %>% top_n(n=1)
 
 # Now import Gregor file and update with new types
 
 dotref_points <- read.csv('Oscar_DOT_Toid_10m.csv')
 
-dotref_points <- merge(dotref_points, dotref_roads, by.x = 'Dot_ref', by.y = 'DotRef', all.x=T)
+dotref_points <- merge(dotref_points, sum_of_weights_per_dotref, by.x = 'Dot_ref', by.y = 'DotRef', all.x=T)
 
 write.csv(dotref_points, 'Oscar_DOT_Toid_10m_V2.csv', row.names = F)
+
+roads$max_height <- NULL
+roads$min_height <- NULL
+roads$max_width <- NULL
+roads$min_width <- NULL
+
+roads <- merge(roads, sum_of_weights_per_dotref, by.x = 'DotRef', by.y = 'DotRef', all.x=T)
+st_write(roads, 'roads_with_dotref_new_type.gpkg', delete_dsn = T)
 ```
