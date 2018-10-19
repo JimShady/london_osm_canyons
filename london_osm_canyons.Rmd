@@ -427,9 +427,7 @@ Now need to get the bearing of each road from start point to end point
 roads                     <- st_transform(roads,4326)
 roads$bearing             <- line_bearing(roads)
 
-#hist(roads$bearing)
 
-#roads <- st_read('roads_after_height_extraction.geojson')
 ```
 
 Haven't been working on them, but think it's time time to add the residential roads back in and harmonise them with the main roads data.
@@ -558,6 +556,15 @@ roads <- roads[!duplicated(roads$osm_id),]
 
 ```{r write_out_as_geojson}
 st_write(roads, dsn='final_roads_london.gpkg', delete_dsn = T)
+```
+
+Kernels data for Sean
+```{r}
+london_kernels_in_use <- aggregate(data = roads[!is.na(roads$height_cat),], cbind(width, total_width, canyon_height) ~ height_cat + width_cat + orientation_classification, FUN=mean )
+
+road_types <- merge(road_types, london_kernels_in_use, by.x = c('width_cat', 'height_cat', 'orientation'), by.y = c('width_cat', 'height_cat', 'orientation_classification'), all.x=T)
+
+write.csv(road_types, 'london_kernels.csv')
 ```
 
 Now just for London look to join our new classifications to the existing roads using a link file from Andrew Beddows.
