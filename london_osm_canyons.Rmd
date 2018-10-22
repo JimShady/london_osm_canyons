@@ -579,7 +579,7 @@ osm_to_dotref <- osm_to_dotref[,c('osm_id', 'DotRef')]
 
 roads         <- merge(roads, osm_to_dotref, by.x = 'osm_id', by.y = 'osm_id', all.x=T)
 
-dotref_roads  <- roads[!is.na(roads$DotRef),c('DotRef', 'road_type')] # bearing could be road length
+dotref_roads  <- roads[!is.na(roads$DotRef),c('DotRef', 'jds_id')] 
 
 dotref_roads <- st_transform(dotref_roads, 27700)
 
@@ -589,7 +589,7 @@ dotref_roads$geometry <- NULL
 
 rm(osm_to_dotref)
 
-sum_of_weights_per_dotref <- aggregate(data=dotref_roads, length ~ DotRef+road_type, FUN=sum)
+sum_of_weights_per_dotref <- aggregate(data=dotref_roads, length ~ DotRef+jds_id, FUN=sum)
 
 sum_of_weights_per_dotref <- sum_of_weights_per_dotref %>% arrange(DotRef,desc(length))
 
@@ -603,10 +603,10 @@ dotref_points <- merge(dotref_points, sum_of_weights_per_dotref, by.x = 'Dot_ref
 
 write.csv(dotref_points, 'Oscar_DOT_Toid_10m_V2.csv', row.names = F)
 
-roads$max_height <- NULL
-roads$min_height <- NULL
-roads$max_width <- NULL
-roads$min_width <- NULL
+#roads$max_height <- NULL
+#roads$min_height <- NULL
+#roads$max_width <- NULL
+#roads$min_width <- NULL
 
 roads <- merge(roads, sum_of_weights_per_dotref, by.x = 'DotRef', by.y = 'DotRef', all.x=T)
 st_write(roads, 'roads_with_dotref_new_type.gpkg', delete_dsn = T)
