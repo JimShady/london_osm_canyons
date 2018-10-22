@@ -35,6 +35,7 @@ library(reshape2)
 library(dplyr)
 library(snow)
 library(snowfall)
+library(rlist)
 ```
 
 
@@ -368,7 +369,7 @@ print('extracted data, using sapply to put into the roads file')
 
 # Check this next bit doesn't insert a list to the data framne. might need to unlist.
 roads$canyon_height                                  <- suppressWarnings(lapply(extracted, max))
-roads[roads$canyon_height == '-Inf','canyon_height'] <- NA
+roads[roads$canyon_height == '-Inf' | is.na(roads$canyon_height),'canyon_height'] <- 5
 print('done')
 
 roads$geometry      <- st_transform(roads$geometry, 4326)
@@ -396,7 +397,7 @@ Add another column for height to width ratio
 #roads$height_width_ratio <- roads$weighted_mean / roads$total_width
 ```
 
-Add another height widhth ratio column for when using the non-zero height from the raster
+Add another height width ratio column for when using the non-zero height from the rasterz
 
 ```{r add_another_height_width_ratio}
 #roads$height_width_ratio <- roads$canyon_height / roads$total_width
@@ -410,7 +411,7 @@ ggplot(roads, aes(y = height_width_ratio, group=type, x=type, fill=type)) + geom
 
 ```
 
-Need to classify the roads as canyons and directions for modelling. Use the street canyon categories Sean has made kernels for.
+Need to classify the roads as canyons and directions for modelling. Here are some categories.
 ```{r road_classification}
 road_types               <- read.csv('model_street_types.csv')
 
@@ -419,14 +420,15 @@ road_types$orientation   <- as.character(road_types$orientation)
 road_types$width_cat     <- paste0(road_types$min_width, '-', road_types$max_width)
 road_types$height_cat    <- paste0(road_types$min_height, '-', road_types$max_height)
 
+road_types$jds_id        <- 1:nrow(road_types)
+
 ```
 
 Now need to get the bearing of each road from start point to end point
 
 ```{r calculate bearing}
-roads                     <- st_transform(roads,4326)
-roads$bearing             <- line_bearing(roads)
 
+roads$bearing             <- line_bearing(roads)
 
 ```
 
@@ -465,10 +467,10 @@ extra_roads$type                            <- as.factor(extra_roads$type)
 #extra_roads$weighted_mean                  <- as.numeric(NA)
 #extra_roads$cell_count                     <- as.integer(NA)
 #extra_roads$zero_cells                     <- as.integer(NA)
-extra_roads$bearing                         <- as.numeric(NA)
+extra_roads$bearing                         <- line_bearing(extra_roads)
 #extra_roads$height_width_ratio             <- as.numeric(NA)
 #extra_roads$max_height                     <- as.numeric(NA)
-extra_roads$canyon_height                   <- as.numeric(NA)
+extra_roads$canyon_height                   <- as.numeric(5)
 #extra_roads$height_width_ratio              <- as.numeric(NA)
 
 col_order <- names(roads)
@@ -488,7 +490,7 @@ roads$orientation_classification <- NA
 
 roads[roads$bearing >= -22.5   & roads$bearing <= 22.5 & !is.na(roads$bearing),]$orientation_classification   <- 'NS'
 roads[roads$bearing >= 157.5   & roads$bearing <= 180 & !is.na(roads$bearing), ]$orientation_classification   <- 'NS'
-roads[roads$bearing <= -157.5  & roads$bearing > -180 & !is.na(roads$bearing), ]$orientation_classification   <- 'NS'
+roads[roads$bearing <= -157.5  & roads$bearing >= -180 & !is.na(roads$bearing), ]$orientation_classification  <- 'NS'
 
 roads[roads$bearing >= 67.5    & roads$bearing <= 112.5 & !is.na(roads$bearing),]$orientation_classification  <- 'EW'
 roads[roads$bearing >= -112.5  & roads$bearing <= -67.5 & !is.na(roads$bearing),]$orientation_classification  <- 'EW'
@@ -519,6 +521,8 @@ roads$height_cat <- gsub(",", "-", roads$height_cat, fixed=T)
 roads$width_cat <- gsub("(", "",  roads$width_cat, fixed=T)
 roads$width_cat <- gsub("]", "",  roads$width_cat, fixed=T)
 roads$width_cat <- gsub(",", "-", roads$width_cat, fixed=T)
+
+roads[is.na(roads$height_cat) & roads$canyon_height == 0,'height_cat'] <- '0-0'
 ```
 
 Add a road type type depending on orientation, height category, and width category
@@ -528,19 +532,6 @@ Add a road type type depending on orientation, height category, and width catego
 roads <- left_join(roads, road_types, by = c("orientation_classification" = "orientation", "height_cat" = "height_cat", "width_cat" = "width_cat"), suffix = c('x','y'))
 
 rm(road_types, road_height_banding, road_width_banding)
-
-```
-
-We have some roads remaining that are not classified. Do these manually as below.
-
-```{r rest_of_the_roads}
-
-
-# Motorway as open road.
-roads[is.na(roads$road_type) & roads$type %in% c('motorway', 'motorway_link'),'road_type'] <- 73
-
-# Rest as typical
-roads[is.na(roads$road_type),'road_type'] <- 74
 
 ```
 
@@ -560,9 +551,15 @@ st_write(roads, dsn='final_roads_london.gpkg', delete_dsn = T)
 
 Kernels data for Sean
 ```{r}
-london_kernels_in_use <- aggregate(data = roads[!is.na(roads$height_cat),], cbind(width, total_width, canyon_height) ~ height_cat + width_cat + orientation_classification, FUN=mean )
+london_kernels_in_use <- aggregate(data = roads, cbind(width, total_width, canyon_height) ~ jds_id, FUN=mean )
 
-road_types <- merge(road_types, london_kernels_in_use, by.x = c('width_cat', 'height_cat', 'orientation'), by.y = c('width_cat', 'height_cat', 'orientation_classification'), all.x=T)
+count                <- aggregate(data = roads, osm_id ~ jds_id, FUN=length )
+
+road_types <- merge(road_types, london_kernels_in_use, by = 'jds_id', all.x=T)
+
+road_types <- merge(road_types, count, by = 'jds_id', all.x=T)
+
+names(road_types)[names(road_types) == 'osm_id'] <- 'count_of_roads'
 
 write.csv(road_types, 'london_kernels.csv')
 ```
@@ -609,4 +606,10 @@ roads$min_width <- NULL
 
 roads <- merge(roads, sum_of_weights_per_dotref, by.x = 'DotRef', by.y = 'DotRef', all.x=T)
 st_write(roads, 'roads_with_dotref_new_type.gpkg', delete_dsn = T)
+```
+
+Alternatively link spatially.
+
+```{r}
+
 ```
