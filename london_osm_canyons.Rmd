@@ -561,6 +561,10 @@ road_types <- merge(road_types, count, by = 'jds_id', all.x=T)
 
 names(road_types)[names(road_types) == 'osm_id'] <- 'count_of_roads'
 
+road_types$canyon_height <- round(road_types$canyon_height,2)
+road_types$width <- round(road_types$width,2)
+road_types$total_width <- round(road_types$total_width,2)
+
 write.csv(road_types, 'london_kernels.csv')
 ```
 
