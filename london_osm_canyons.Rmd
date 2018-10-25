@@ -602,6 +602,7 @@ dotref_points <- read.csv('Oscar_DOT_Toid_10m.csv')
 dotref_points <- merge(dotref_points, sum_of_weights_per_dotref, by.x = 'Dot_ref', by.y = 'DotRef', all.x=T)
 
 write.csv(dotref_points, 'Oscar_DOT_Toid_10m_V2.csv', row.names = F)
+rm(count, dotref_points, dotref_roads, extracted, london_raster, london_kernels_in_use, road_polygons, road_types, sum_of_weights_per_dotref, col_order, end_time, max_x, min_x, max_y, min_y, latlong, road_height_banding, road_width_banding, start_time)
 
 #roads$max_height <- NULL
 #roads$min_height <- NULL
@@ -612,8 +613,26 @@ roads <- merge(roads, sum_of_weights_per_dotref, by.x = 'DotRef', by.y = 'DotRef
 st_write(roads, 'roads_with_dotref_new_type.gpkg', delete_dsn = T)
 ```
 
-Alternatively link spatially.
+Alternatively link without any aggregation
+
+```{r}
+#Just keep the dotref roads
+roads           <- st_read('final_roads_london.gpkg')
+osm_to_dotref  <- read.csv('osmToDotRef.csv')
+osm_to_dotref  <- osm_to_dotref[osm_to_dotref$osm_id != osm_to_dotref$DotRef & osm_to_dotref$DotRef_Lts == 'DotRef',]
+osm_to_dotref  <- osm_to_dotref[,c('osm_id', 'DotRef')]
+roads          <- merge(roads, osm_to_dotref, by.x = 'osm_id', by.y = 'osm_id', all.x=T)
+dotref_roads   <- roads[!is.na(roads$DotRef),c('DotRef', 'jds_id')] 
+dotref_roads   <- st_transform(dotref_roads, 27700)
+
+dotref_points  <- read.csv('Oscar_DOT_Toid_10m.csv')
+dotref_points  <- st_as_sf(dotref_points, coords =  c('Easting', 'Northing'))
+dotref_points  <- st_set_crs(dotref_points, 27700)
+ 
+rm(roads, osm_to_dotref)
+
+st_nearest_feature(dotref_points[1:10,], dotref_roads[1:10,])
+```
 
 ```{r}
 
-```
