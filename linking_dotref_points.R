@@ -41,6 +41,6 @@ for (i in 1:length(groups_to_do))
 
 sfStop()
 
-  
-
-
+names(result)[names(result)=="nearest_line_id"] <- "street_type"
+result <- as.data.frame(result)
+write.csv(result, 'Oscar_DOT_Toid_10m_V2.csv')
