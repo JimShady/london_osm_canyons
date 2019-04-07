@@ -28,6 +28,7 @@ library(rgdal)
 library(rgeos)
 library(data.table)
 library(knitr)
+
 suppressMessages(library(mapview))
 library(RCurl)
 library(stplanr)
@@ -36,6 +37,7 @@ library(dplyr)
 library(snow)
 library(snowfall)
 library(rlist)
+library(rasterVis)
 ```
 
 
@@ -53,6 +55,22 @@ london_raster <- raster('buildings_raster/UK001L2_LONDON_UA2012_DHM/UK001L2_LOND
 ```
 
 ```{r}
+
+london_raster[london_raster == 0] <- NA
+meanval <- cellStats(london_raster, stat='mean', na.rm=T)
+
+my_breaks <- c(0,5,10,15,20,30,40,50,200)
+
+mycolorkey <- list(at=my_breaks, ## where the colors change
+                   labels=list(
+                       at=my_breaks ## where to print labels
+                     ))
+
+levelplot(london_raster - mean,
+          par.settings = RdBuTheme,
+          at = my_breaks,
+          colorkey = mycolorkey)
+
 plot(london_raster)
 title('Raster file of London Building heights')
 ```
