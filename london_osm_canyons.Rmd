@@ -36,6 +36,7 @@ library(dplyr)
 library(snow)
 library(snowfall)
 library(rlist)
+library(dplyr)
 ```
 
 
@@ -53,8 +54,44 @@ london_raster <- raster('buildings_raster/UK001L2_LONDON_UA2012_DHM/UK001L2_LOND
 ```
 
 ```{r}
-plot(london_raster)
-title('Raster file of London Building heights')
+
+focus_area                <- st_as_sf(as(raster::extent(529735, 533671, 180049, 181052), 'SpatialPolygons')) %>% 
+                              st_set_crs(27700) %>%
+                              st_transform(crs(london_raster)@projargs) %>%
+                              as('Spatial')
+
+temp <- crop(london_raster, focus_area)
+
+temp <- rasterToPolygons(temp)
+
+temp <- st_as_sf(temp)
+
+labels <- list()
+
+for (i in 1:5) {
+  labels[[i]]                   <- paste(round(quantile(temp$UK001L2_LONDON_UA2012_DHM,c(0.5,0.8,0.85,0.9,0.95,1))[i],0),
+                                         '-',
+                                         round(quantile(temp$UK001L2_LONDON_UA2012_DHM,c(0.5,0.8,0.85,0.9,0.95,1))[(i+1)],0))
+}
+labels                          <- unlist(labels)
+temp$height <- cut(temp$UK001L2_LONDON_UA2012_DHM, 
+                                       breaks=c(0,quantile(temp$UK001L2_LONDON_UA2012_DHM,c(0.5,0.8,0.85,0.9,0.95,1))[2:7]),
+                                       labels = labels)
+colours <- c('#ffffd4','#fed98e','#fe9929','#d95f0e','#993404')
+
+rm(focus_area)
+
+plot <- ggplot() + 
+  geom_sf(data = filter(temp, !is.na(height)), colour = NA, aes(fill = height)) +
+  coord_sf() +
+  scale_fill_manual(values = colours, name = "Height (m)") +
+  #scale_fill_discrete(name = expression(paste("NOx emissions (", mu, m^2, "/", m^3, ")", sep=""))) +
+  theme(axis.text = element_blank(),
+        axis.ticks = element_blank(),
+        panel.background = element_blank())
+
+ggsave('building_height_map.png', plot = plot, path = 'maps/', height = 5, width = 15, units='cm')
+
 ```
 
 ```{r}
